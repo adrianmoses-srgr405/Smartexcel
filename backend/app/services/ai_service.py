@@ -68,7 +68,7 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
             return None
 
     @classmethod
-    def _heuristic_rule_parser(cls, query: str, columns: list[DatasetColumn]) -> StructuredAnalysisIntent:
+    def _heuristic_rule_parser(cls, query: str, columns: list[DatasetColumn], df: Any = None) -> StructuredAnalysisIntent:
         """
         Deterministic NLP Parser fallback that guarantees 100% accurate structured JSON
         for standard Indonesian / English Excel analytical queries.
@@ -80,6 +80,7 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
 
         # 1. Determine Operation & Intent
         filter_keywords = [
+            "rangkap", "rangkap data", "rekap data", "rangkum data",
             "ambil data", "filter data", "tampilkan data", "ekstrak data", "data mobil",
             "daftar", "list data", "semua data", "tabel data", "tabel", "lihat data", "baris data", "rincian data"
         ]
@@ -108,29 +109,28 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
 
         # 2. Identify Target Field (Numeric Column)
         target_field = None
-        if op != "FILTER" and intent != "filter_recap":
-            for col_l, original in col_name_lower_map.items():
-                if col_l in q_lower and col_type_map.get(col_l) == "Numeric":
-                    target_field = original
-                    break
-            
-            # Priority numeric column keywords: 'netto', 'harga', 'total', 'jumlah', 'cpo', 'tbs', 'nilai'
-            if not target_field:
-                priority_numeric = ["harga_netto", "harga", "total", "produksi_cpo_kg", "tbs_olah_kg", "jumlah_keluar"]
-                for p in priority_numeric:
-                    for col in columns:
-                        col_san = (col.sanitized_name or col.original_name.lower().replace(" ", "_"))
-                        if col.inferred_type == "Numeric" and p in col_san:
-                            target_field = col.original_name
-                            break
-                    if target_field:
-                        break
-
-            if not target_field:
+        for col_l, original in col_name_lower_map.items():
+            if col_l in q_lower and col_type_map.get(col_l) == "Numeric":
+                target_field = original
+                break
+        
+        # Priority numeric column keywords: 'netto', 'harga', 'total', 'jumlah', 'cpo', 'tbs', 'nilai'
+        if not target_field:
+            priority_numeric = ["harga_netto", "harga", "total", "produksi_cpo_kg", "tbs_olah_kg", "jumlah_keluar", "tbs_terima_ton", "volume_liter"]
+            for p in priority_numeric:
                 for col in columns:
-                    if col.inferred_type == "Numeric":
+                    col_san = (col.sanitized_name or col.original_name.lower().replace(" ", "_"))
+                    if col.inferred_type == "Numeric" and p in col_san:
                         target_field = col.original_name
                         break
+                if target_field:
+                    break
+
+        if not target_field:
+            for col in columns:
+                if col.inferred_type == "Numeric":
+                    target_field = col.original_name
+                    break
 
 
         # 3. Identify Group By
@@ -191,16 +191,25 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
                     ))
                     break
 
-        # B. Categorical Value Filters (e.g. "Pekanbaru", "Toyota", "Honda", "Kebun Tandun")
+        # B. Categorical Value Filters (e.g. "Pekanbaru", "Toyota", "Innova", "Avanza", "Pajero Sport", "Brio")
         used_words = set()
         for col in columns:
-            if col.inferred_type in ["Categorical", "Text"]:
-                for sample_val in (col.sample_values or []):
+            if col.inferred_type in ["Categorical", "Text"] or col.inferred_type is None:
+                # Gather candidate values from df if available, else sample_values
+                candidate_values = list(col.sample_values or [])
+                if df is not None and col.original_name in df.columns:
+                    unique_vals = [str(x).strip() for x in df[col.original_name].dropna().unique() if str(x).strip()]
+                    candidate_values = unique_vals
+
+                # Sort candidates by string length descending to match full names first (e.g. "Pajero Sport" before "Sport")
+                sorted_candidates = sorted(candidate_values, key=lambda x: len(str(x)), reverse=True)
+
+                for sample_val in sorted_candidates:
                     s_str = str(sample_val).strip()
                     if not s_str or len(s_str) <= 2:
                         continue
 
-                    # Exact word match in query (e.g. "Toyota", "Brio")
+                    # Exact phrase/word match in query (e.g. "Toyota", "Innova", "Pajero Sport")
                     s_clean = s_str.lower()
                     if s_clean not in used_words and re.search(rf"\b{re.escape(s_clean)}\b", q_lower):
                         filters.append(FilterCriterion(
@@ -212,7 +221,7 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
                         used_words.add(s_clean)
                         break
 
-                    # Partial word match: word in value appears in query (e.g. "Pekanbaru" matches "Pekanbaru Sudirman")
+                    # Partial word match: word in value appears in query (e.g. "Pajero" matches "Pajero Sport", "Sudirman" matches "Pekanbaru Sudirman")
                     words_in_val = [w.lower() for w in s_str.split() if len(w) >= 4 and w.lower() not in used_words]
                     matched_word = next((w for w in words_in_val if re.search(rf"\b{re.escape(w)}\b", q_lower)), None)
                     if matched_word and not any(f.field == col.original_name for f in filters):
@@ -243,9 +252,10 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
         )
 
     @classmethod
-    def parse_query(cls, query: str, columns: list[DatasetColumn]) -> StructuredAnalysisIntent:
+    def parse_query(cls, query: str, columns: list[DatasetColumn], df: Any = None) -> StructuredAnalysisIntent:
         """Parses query using LLM if available, otherwise uses deterministic heuristic parser."""
         gemini_result = cls._parse_with_gemini(query, columns)
         if gemini_result:
             return gemini_result
-        return cls._heuristic_rule_parser(query, columns)
+        return cls._heuristic_rule_parser(query, columns, df=df)
+

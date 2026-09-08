@@ -131,16 +131,80 @@ class ExecutionEngine:
             "groups": group_cols,
         }
 
-        # Case 0: Data Filtering / Table Extraction (e.g. "ambil data mobil brio")
+        # Case 0: Data Filtering / Table Extraction (e.g. "ambil data mobil brio" or "rangkap data")
         if fid == "FILTER" or op == "FILTER" or intent.intent in ["filter_recap", "filter"]:
             headers = list(filtered_df.columns)
             preview = filtered_df.head(500).copy()
             for col in preview.columns:
                 preview[col] = preview[col].apply(lambda v: None if pd.isna(v) else str(v))
             rows = preview.to_dict(orient="records")
-            summary["calculated_result"] = f"{len(filtered_df)} baris data"
+
+            # Smart Total Calculation for Recap
+            grand_total_val = None
+            if not target_col:
+                priority_numeric = ["harga_netto", "harga", "total", "produksi_cpo_kg", "tbs_olah_kg", "jumlah_keluar", "tbs_terima_ton", "volume_liter"]
+                for p in priority_numeric:
+                    m = [c for c in filtered_df.columns if p in c.lower().replace(" ", "_")]
+                    if m:
+                        target_col = m[0]
+                        break
+                if not target_col:
+                    num_cols = [c for c in filtered_df.columns if pd.api.types.is_numeric_dtype(filtered_df[c])]
+                    if num_cols:
+                        target_col = num_cols[0]
+
+            # Comprehensive Raw vs Filtered Reconciliation Proof
+            summary["total_raw_rows"] = len(df)
+            summary["matched_rows"] = len(filtered_df)
+            summary["match_percentage"] = round((len(filtered_df) / max(len(df), 1)) * 100, 1)
+
+            if target_col and target_col in filtered_df.columns:
+                num_s = pd.to_numeric(filtered_df[target_col], errors="coerce").dropna()
+                raw_s = pd.to_numeric(df[target_col], errors="coerce").dropna() if target_col in df.columns else pd.Series([])
+                raw_sum = round(float(raw_s.sum()), 2) if not raw_s.empty else 0
+                summary["raw_total_sum"] = raw_sum
+
+                if not num_s.empty:
+                    grand_total_val = round(float(num_s.sum()), 2)
+                    avg_val = round(float(num_s.mean()), 2)
+                    min_val = round(float(num_s.min()), 2)
+                    max_val = round(float(num_s.max()), 2)
+                    share_pct = round((grand_total_val / max(raw_sum, 1)) * 100, 1) if raw_sum > 0 else 100.0
+
+                    summary["grand_total"] = grand_total_val
+                    summary["average_val"] = avg_val
+                    summary["min_val"] = min_val
+                    summary["max_val"] = max_val
+                    summary["share_of_total_pct"] = share_pct
+                    summary["target_field"] = target_col
+                    summary["calculated_result"] = f"{len(filtered_df)} baris (Total: {grand_total_val:,.0f})"
+                else:
+                    summary["calculated_result"] = f"{len(filtered_df)} baris data"
+                    summary["grand_total"] = len(filtered_df)
+            else:
+                summary["calculated_result"] = f"{len(filtered_df)} baris data"
+                summary["grand_total"] = len(filtered_df)
+
             summary["total_filtered_rows"] = len(filtered_df)
-            summary["grand_total"] = len(filtered_df)
+
+            # Generate chart_data for recap breakdown
+            if not filtered_df.empty and target_col:
+                cat_candidates = ["model", "merek", "cabang", "sales", "tipe", "afdeling", "kebun", "pks", "nama_barang"]
+                cat_col = None
+                for c in cat_candidates:
+                    m = [col for col in filtered_df.columns if c in col.lower()]
+                    if m and m[0] != target_col:
+                        cat_col = m[0]
+                        break
+                if cat_col:
+                    try:
+                        chart_df = filtered_df.copy()
+                        chart_df[target_col] = pd.to_numeric(chart_df[target_col], errors="coerce").fillna(0)
+                        top_chart = chart_df.groupby(cat_col, as_index=False)[target_col].sum().sort_values(by=target_col, ascending=False).head(8)
+                        chart_data = [{"name": str(r[cat_col]), "value": float(r[target_col])} for _, r in top_chart.iterrows()]
+                    except Exception:
+                        pass
+
             return summary, headers, rows, chart_data
 
         # Case 1: Group By Aggregation (e.g. Rekap per Merek)
@@ -182,6 +246,10 @@ class ExecutionEngine:
         # Case 2: Single Aggregation Result (No Grouping)
         elif target_col:
             num_series = pd.to_numeric(filtered_df[target_col], errors="coerce").dropna()
+            raw_s = pd.to_numeric(df[target_col], errors="coerce").dropna() if target_col in df.columns else pd.Series([])
+            raw_sum = round(float(raw_s.sum()), 2) if not raw_s.empty else 0
+            summary["raw_total_sum"] = raw_sum
+
             result_val = 0
             if op == "SUM":
                 result_val = round(float(num_series.sum()), 2) if not num_series.empty else 0
@@ -195,8 +263,15 @@ class ExecutionEngine:
                 result_val = round(float(num_series.min()), 2) if not num_series.empty else 0
 
             summary["calculated_result"] = result_val
-            summary["grand_total"] = result_val if op == "SUM" else None
+            summary["grand_total"] = round(float(num_series.sum()), 2) if not num_series.empty else 0
+            summary["average_val"] = round(float(num_series.mean()), 2) if not num_series.empty else 0
+            summary["min_val"] = round(float(num_series.min()), 2) if not num_series.empty else 0
+            summary["max_val"] = round(float(num_series.max()), 2) if not num_series.empty else 0
             summary["total_filtered_rows"] = len(filtered_df)
+            summary["matched_rows"] = len(filtered_df)
+            summary["total_raw_rows"] = len(df)
+            summary["match_percentage"] = round((len(filtered_df) / max(len(df), 1)) * 100, 1)
+            summary["share_of_total_pct"] = round((summary["grand_total"] / max(raw_sum, 1)) * 100, 1) if raw_sum > 0 else 100.0
 
             # Return the actual filtered transaction records so the table displays the data rows!
             headers = list(filtered_df.columns)

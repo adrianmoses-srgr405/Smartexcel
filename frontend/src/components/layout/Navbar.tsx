@@ -56,6 +56,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               minWidth: '220px'
             }}
           >
+            {!selectedDataset && (
+              <option value="" disabled>
+                -- Klik untuk Memilih Dataset --
+              </option>
+            )}
             {datasets.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.filename} ({d.row_count} baris, {d.column_count} kolom)

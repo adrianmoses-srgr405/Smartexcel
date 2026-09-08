@@ -87,8 +87,9 @@ class ReportService:
         rows = analysis_data.get("table_rows", [])
 
         if headers and rows:
-            # Table Header
-            for c_idx, h in enumerate(headers, start=1):
+            # Table Header with 'No' as first column
+            full_headers = ["No"] + headers
+            for c_idx, h in enumerate(full_headers, start=1):
                 cell = ws.cell(row=row_idx, column=c_idx, value=h)
                 cell.font = font_header
                 cell.fill = fill_header
@@ -99,8 +100,16 @@ class ReportService:
             row_idx += 1
 
             start_data_row = row_idx
-            for r in rows:
-                for c_idx, h in enumerate(headers, start=1):
+            for r_idx, r in enumerate(rows, start=1):
+                # Col 1: No
+                cell_no = ws.cell(row=row_idx, column=1, value=r_idx)
+                cell_no.border = thin_border
+                cell_no.font = font_regular
+                cell_no.alignment = Alignment(horizontal="center", vertical="center")
+                if (row_idx - start_data_row) % 2 == 1:
+                    cell_no.fill = fill_zebra
+
+                for c_idx, h in enumerate(headers, start=2):
                     raw_val = r.get(h, "")
                     # Convert numeric strings to actual numbers for Excel formulas
                     num_val = None
@@ -133,12 +142,12 @@ class ReportService:
             target_field = analysis_data.get("calculation_summary", {}).get("target_field")
             target_col_idx = None
             if target_field:
-                for idx, h in enumerate(headers, start=1):
+                for idx, h in enumerate(headers, start=2):
                     if h.lower() == str(target_field).lower() or str(target_field).lower() in h.lower():
                         target_col_idx = idx
                         break
             if target_col_idx is None and len(headers) >= 2:
-                target_col_idx = len(headers)
+                target_col_idx = len(headers) + 1
 
             grand_total = analysis_data.get("calculation_summary", {}).get("grand_total")
             if grand_total is None:
@@ -156,7 +165,7 @@ class ReportService:
                 total_cell.number_format = "#,##0.00" if isinstance(grand_total, float) else "#,##0"
                 total_cell.alignment = Alignment(horizontal="right", vertical="center")
 
-                for c_idx in range(1, len(headers) + 1):
+                for c_idx in range(1, len(full_headers) + 1):
                     ws.cell(row=row_idx, column=c_idx).border = thin_border
                     ws.cell(row=row_idx, column=c_idx).fill = fill_highlight
                 row_idx += 1

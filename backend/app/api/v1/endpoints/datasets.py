@@ -136,8 +136,14 @@ def get_dataset_detail(dataset_id: str, db: Session = Depends(get_db)):
     available_sheets = (dataset.dataset_metadata or {}).get("available_sheets", [])
 
     if file_path.exists():
-        df, s_sheet, a_sheets = ProfilerService.load_dataset_file(file_path, sheet_name=selected_sheet)
-        _, _, preview_data = ProfilerService.profile_dataframe(df)
+        df, s_sheet, a_sheets = ProfilerService.load_dataset_file(
+            file_path,
+            sheet_name=selected_sheet,
+            known_sheets=available_sheets
+        )
+        preview_data = ProfilerService.extract_preview_data(df, limit=1000)
+        if not selected_sheet:
+            selected_sheet = s_sheet
         if not available_sheets:
             available_sheets = a_sheets
 

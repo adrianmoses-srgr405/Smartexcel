@@ -114,4 +114,8 @@ id,user_request,intent,operation,target_field,filter_count,grouping_count,has_da
 113,Daftar lengkap transaksi mobil Brio di showroom,filter_recap,FILTER,None,1,0,0,0,none,FILTER
 114,Filter tabel data karyawan divisi QC,filter_recap,FILTER,None,1,0,0,0,none,FILTER
 115,Ambil data transaksi mobil brio warna hitam,filter_recap,FILTER,None,2,0,0,1,none,FILTER
-
+116,Rangkap data mobil Toyota dan hitung totalnya,filter_recap,FILTER,Harga_Netto,1,0,0,0,numeric,FILTER
+117,Rangkap data transaksi mobil Honda di cabang Panam,filter_recap,FILTER,Harga_Netto,2,0,0,1,numeric,FILTER
+118,Rangkap data penjualan mobil Avanza beserta grand total,filter_recap,FILTER,Harga_Netto,1,0,0,0,numeric,FILTER
+119,Rangkap seluruh data produksi CPO Pabrik Sei Galuh,filter_recap,FILTER,cpo_prod_ton,1,0,0,0,numeric,FILTER
+120,Tampilkan rangkap data transaksi kredit mobil dan total omsetnya,filter_recap,FILTER,Harga_Netto,1,0,0,0,numeric,FILTER

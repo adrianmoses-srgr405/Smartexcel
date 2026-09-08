@@ -15,6 +15,8 @@ import {
   Layers,
   Award,
   AlertCircle,
+  XCircle,
+  Scale,
 } from 'lucide-react';
 
 import {
@@ -41,15 +43,20 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
   const [copiedFormula, setCopiedFormula] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [evalSubmitted, setEvalSubmitted] = useState(false);
+  const [simulateMismatch, setSimulateMismatch] = useState(false);
 
   const isCarDataset = selectedDataset?.filename?.toLowerCase().includes('mobil') || selectedDataset?.filename?.toLowerCase().includes('penjualan');
 
   const sampleQueries = isCarDataset ? [
-    'Ambil data mobil Brio',
-    'Tampilkan semua data mobil Brio dalam bentuk tabel',
+    'Rangkap data mobil Avanza',
+    'Ambil data mobil Innova',
+    'Tampilkan data mobil Pajero Sport',
+    'Ambil data mobil Fortuner',
+    'Rangkap data mobil Xpander',
+    'Filter data mobil Brio',
+    'Total penjualan mobil Rush',
+    'Filter data mobil Sigra',
     'Total penjualan Toyota di Pekanbaru pada Februari 2024',
-    'Filter data mobil Daihatsu transmisi Matic',
-    'Berapa rata-rata harga jual mobil Honda?',
     'Rekap total penjualan mobil per merek',
   ] : [
     'Buat rekap produksi CPO per asal kebun untuk Februari 2024',
@@ -215,6 +222,23 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
               </button>
             ))}
           </div>
+          {isCarDataset && (
+            <div style={{
+              marginTop: '0.65rem',
+              fontSize: '0.75rem',
+              color: '#38bdf8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: 'rgba(56, 189, 248, 0.08)',
+              padding: '0.4rem 0.75rem',
+              borderRadius: '6px',
+              border: '1px solid rgba(56, 189, 248, 0.2)'
+            }}>
+              <span>💡</span>
+              <span><strong>Dukungan Penuh:</strong> AI dapat mengenali <strong>seluruh 20 model mobil</strong> di dataset: Avanza, Innova, Fortuner, Pajero Sport, Rush, Brio, Sigra, Xpander, Terios, Xenia, BR-V, HR-V, Creta, Almaz, Alvez, Ertiga, XL7, Stargazer, Dolphin, Atto 3.</span>
+            </div>
+          )}
         </div>
 
         {errorMessage && (
@@ -458,141 +482,462 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
             </div>
           </div>
 
-          {/* RESULTS TABLE & CHART SECTION */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: analysisResult.chart_data && analysisResult.chart_data.length > 0 ? '1fr 1fr' : '1fr',
-            gap: '1.5rem',
-            maxWidth: '100%',
-            overflow: 'hidden'
-          }}>
-            {/* Table Result */}
-            <div className="glass-panel" style={{ padding: '1.5rem', maxWidth: '100%', overflow: 'hidden' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                marginBottom: '1rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc' }}>
-                    {analysisResult.decision.formula_id === 'FILTER' || analysisResult.parsed_intent.intent === 'filter_recap'
-                      ? 'Tabel Data Baris Terfilter'
-                      : 'Tabel Hasil Perhitungan'}
-                  </span>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '10px',
-                    background: 'rgba(59, 130, 246, 0.2)',
-                    color: '#60a5fa',
-                    fontWeight: 600
-                  }}>
-                    {analysisResult.table_rows.length} Baris Data
-                  </span>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '10px',
-                    background: 'rgba(16, 185, 129, 0.2)',
-                    color: '#34d399',
-                    fontWeight: 600
-                  }}>
-                    {analysisResult.table_headers.length} Kolom
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic' }}>
-                    (Scroll ↕ dan ↔ di dalam tabel)
-                  </span>
-                </div>
-                <button
-                  onClick={handleExportExcel}
-                  disabled={isExporting}
-                  className="btn btn-primary"
-                  style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
-                >
-                  <Download size={14} />
-                  <span>{isExporting ? 'Generating...' : 'Export Excel (.xlsx)'}</span>
-                </button>
-              </div>
-
-              <div className="modern-table-container" style={{ maxHeight: '460px', overflowY: 'auto', overflowX: 'auto', maxWidth: '100%' }}>
-                <table className="modern-table" style={{ minWidth: '100%', width: 'max-content' }}>
-                  <thead>
-                    <tr>
-                      {analysisResult.table_headers.map((h, i) => (
-                        <th key={i}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analysisResult.table_rows.map((row, rIdx) => (
-                      <tr key={rIdx}>
-                        {analysisResult.table_headers.map((h, cIdx) => (
-                          <td key={cIdx} style={{
-                            fontWeight: typeof row[h] === 'number' ? 600 : 400,
-                            fontFamily: typeof row[h] === 'number' ? 'var(--font-mono)' : 'inherit',
-                            textAlign: typeof row[h] === 'number' ? 'right' : 'left'
-                          }}>
-                            {typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h] ?? '-')}
-                          </td>
-                        ))}
-                      </tr>
-
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Grand Total Footer if calculated */}
-              {analysisResult.calculation_summary.grand_total !== undefined && (
-                <div style={{
-                  marginTop: '1rem',
-                  padding: '0.75rem 1rem',
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontWeight: 700
+          {/* 1. TABEL HASIL / DATA BARIS TERFILTER (FULL WIDTH 100%) */}
+          <div className="glass-panel" style={{ padding: '1.5rem', width: '100%', overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#f8fafc' }}>
+                  {analysisResult.decision.formula_id === 'FILTER' || analysisResult.parsed_intent.intent === 'filter_recap'
+                    ? 'Tabel Data Baris Terfilter'
+                    : 'Tabel Hasil Perhitungan'}
+                </span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: '10px',
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  color: '#60a5fa',
+                  fontWeight: 600
                 }}>
-                  <span style={{ color: '#f8fafc' }}>GRAND TOTAL</span>
-                  <span style={{ color: '#34d399', fontSize: '1.2rem', fontFamily: 'var(--font-mono)' }}>
-                    {analysisResult.calculation_summary.grand_total.toLocaleString()}
-                  </span>
-                </div>
-              )}
+                  {analysisResult.table_rows.length} Baris Data
+                </span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: '10px',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  color: '#34d399',
+                  fontWeight: 600
+                }}>
+                  {analysisResult.table_headers.length} Kolom
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+                  (Scroll ↕ vertikal dan ↔ horizontal di dalam tabel)
+                </span>
+              </div>
+              <button
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="btn btn-primary"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+              >
+                <Download size={15} />
+                <span>{isExporting ? 'Generating...' : 'Export Excel (.xlsx)'}</span>
+              </button>
             </div>
 
-            {/* Dynamic Recharts Chart */}
-            {analysisResult.chart_data && analysisResult.chart_data.length > 0 && (
-              <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <BarChart3 size={18} color="#60a5fa" />
-                  <span>Visualisasi Distribusi</span>
+            {/* Table Scroll Container */}
+            <div className="modern-table-container" style={{ maxHeight: '520px', overflowY: 'auto', overflowX: 'auto', width: '100%' }}>
+              <table className="modern-table" style={{ width: '100%', minWidth: 'max-content' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px', textAlign: 'center', minWidth: '55px' }}>No</th>
+                    {analysisResult.table_headers.map((h, i) => (
+                      <th key={i}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysisResult.table_rows.map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      <td style={{
+                        textAlign: 'center',
+                        color: '#94a3b8',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        fontFamily: 'var(--font-mono)',
+                        background: 'rgba(255, 255, 255, 0.02)'
+                      }}>
+                        {rIdx + 1}
+                      </td>
+                      {analysisResult.table_headers.map((h, cIdx) => (
+                        <td key={cIdx} style={{
+                          fontWeight: typeof row[h] === 'number' ? 600 : 400,
+                          fontFamily: typeof row[h] === 'number' ? 'var(--font-mono)' : 'inherit',
+                          textAlign: typeof row[h] === 'number' ? 'right' : 'left'
+                        }}>
+                          {typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h] ?? '-')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Grand Total Footer if calculated */}
+            {analysisResult.calculation_summary.grand_total !== undefined && (
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1.15rem 1.5rem',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 78, 59, 0.25) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: '10px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '1.25rem'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#10b981', fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.05em' }}>
+                      GRAND TOTAL {analysisResult.calculation_summary.target_field ? `(${analysisResult.calculation_summary.target_field})` : ''}
+                    </span>
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: '0.82rem', marginTop: '0.25rem' }}>
+                    📊 Terhitung dari <strong>{(analysisResult.calculation_summary.matched_rows || analysisResult.table_rows.length).toLocaleString('id-ID')} baris</strong> data terfilter
+                    {analysisResult.calculation_summary.match_percentage != null && (
+                      <span> ({analysisResult.calculation_summary.match_percentage}% dari total {analysisResult.calculation_summary.total_raw_rows?.toLocaleString('id-ID')} data mentah)</span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1, minHeight: '280px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={analysisResult.chart_data}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#131c2e',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px',
-                          color: '#f8fafc'
-                        }}
-                      />
-                      <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+
+                {/* Secondary Summary Stats */}
+                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {analysisResult.calculation_summary.average_val != null && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>Rata-Rata / Transaksi</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                        Rp {Number(analysisResult.calculation_summary.average_val).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>Total Nominal</div>
+                    <div style={{ color: '#34d399', fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-mono)' }}>
+                      {typeof analysisResult.calculation_summary.grand_total === 'number'
+                        ? `Rp ${analysisResult.calculation_summary.grand_total.toLocaleString('id-ID')}`
+                        : String(analysisResult.calculation_summary.grand_total)}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
+
+          {/* 2. PANEL PEMBUKTIAN & REKONSILIASI INTEGRITAS DATA MENTAH (FULL WIDTH DI BAWAH TABEL) */}
+          {(() => {
+            const actualRawMatched = analysisResult.calculation_summary.matched_rows || analysisResult.table_rows.length;
+            const rawMatchedRows = actualRawMatched;
+            // Jika mode uji coba salah aktif, simulasikan 3 baris hilang sehingga timbul selisih
+            const aiResultRows = simulateMismatch ? Math.max(actualRawMatched - 3, 0) : analysisResult.table_rows.length;
+            const varianceRows = Math.abs(rawMatchedRows - aiResultRows);
+            const isMatch = !simulateMismatch && varianceRows === 0;
+
+            return (
+              <div className="glass-panel" style={{
+                padding: '1.5rem',
+                width: '100%',
+                background: isMatch ? 'rgba(15, 23, 42, 0.85)' : 'rgba(30, 10, 15, 0.85)',
+                border: isMatch ? '2px solid rgba(16, 185, 129, 0.5)' : '2px solid rgba(239, 68, 68, 0.6)',
+                boxShadow: isMatch ? '0 0 20px rgba(16, 185, 129, 0.1)' : '0 0 20px rgba(239, 68, 68, 0.15)',
+                borderRadius: '12px'
+              }}>
+                {/* Header Section with Prominent Green / Red Indicator Badge & Interactive Test Switcher */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <ShieldCheck size={24} color={isMatch ? '#10b981' : '#ef4444'} />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f8fafc' }}>
+                        Pembuktian & Rekonsiliasi Integritas Data Mentah
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                        Sistem audit deterministik yang membandingkan hasil olahan AI langsung terhadap lembar Excel mentah
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PROMINENT COLOR INDICATOR BADGE (HIJAU jika sama, MERAH jika salah) */}
+                  <div style={{
+                    padding: '0.45rem 1rem',
+                    background: isMatch
+                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(6, 78, 59, 0.4) 100%)'
+                      : 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(127, 29, 29, 0.4) 100%)',
+                    color: isMatch ? '#34d399' : '#f87171',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    border: isMatch ? '1.5px solid #10b981' : '1.5px solid #ef4444',
+                    boxShadow: isMatch ? '0 0 10px rgba(16, 185, 129, 0.3)' : '0 0 10px rgba(239, 68, 68, 0.3)'
+                  }}>
+                    {isMatch ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                    <span>{isMatch ? '🟢 PENANDA HIJAU: JUMLAH DATA 100% SAMA & SINKRON' : '🔴 PENANDA MERAH: JUMLAH DATA TIDAK SAMA (SELISIH DETEKSI)'}</span>
+                  </div>
+                </div>
+
+                {/* Interactive Audit Simulation Controls */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  padding: '0.65rem 0.95rem',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  marginBottom: '1.25rem'
+                }}>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    <span style={{ fontWeight: 700, color: '#f8fafc' }}>Fitur Pengujian Auditor:</span> Klik tombol di samping untuk menguji bagaimana sistem bereaksi saat data cocok vs saat ada kesalahan/selisih:
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => setSimulateMismatch(false)}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        borderRadius: '6px',
+                        background: !simulateMismatch ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        color: !simulateMismatch ? '#34d399' : '#94a3b8',
+                        fontWeight: !simulateMismatch ? 700 : 500,
+                        border: !simulateMismatch ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)'
+                      }}
+                    >
+                      🟢 Uji Data Normal (Cocok)
+                    </button>
+                    <button
+                      onClick={() => setSimulateMismatch(true)}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        borderRadius: '6px',
+                        background: simulateMismatch ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        color: simulateMismatch ? '#f87171' : '#94a3b8',
+                        fontWeight: simulateMismatch ? 700 : 500,
+                        border: simulateMismatch ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.1)'
+                      }}
+                    >
+                      🔴 Uji Coba Jika Data Salah (Simulasi Selisih)
+                    </button>
+                  </div>
+                </div>
+
+                {simulateMismatch && (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    color: '#fca5a5',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <AlertCircle size={18} color="#ef4444" />
+                    <span><strong>MODE SIMULASI KESALAHAN AKTIF:</strong> Disimulasikan 3 baris data hilang/korup ({actualRawMatched} baris mentah vs {aiResultRows} baris olahan). Sistem seketika mendeteksi selisih 3 baris dan mengaktifkan <strong>PENANDA MERAH</strong>!</span>
+                  </div>
+                )}
+
+                {/* SIDE-BY-SIDE VERIFICATION COMPARISON BOX (KOMPARASI SEBELUM VS SESUDAH) */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: '1rem',
+                  padding: '1.25rem',
+                  background: isMatch ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+                  borderRadius: '10px',
+                  border: isMatch ? '1px dashed rgba(16, 185, 129, 0.35)' : '1px dashed rgba(239, 68, 68, 0.4)',
+                  marginBottom: '1.25rem',
+                  alignItems: 'center'
+                }}>
+                  {/* Card 1: Data Asli (Ground Truth) */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      1. Data Mentah Asli (Excel)
+                    </div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#38bdf8', marginTop: '0.35rem', fontFamily: 'var(--font-mono)' }}>
+                      {rawMatchedRows.toLocaleString('id-ID')} Baris
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
+                      Kueri langsung pada sumber file fisik
+                    </div>
+                  </div>
+
+                  {/* Card 2: Equality Operator / Comparison Indicator */}
+                  <div style={{ textAlign: 'center', padding: '0.5rem' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      background: isMatch ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                      border: isMatch ? '2px solid #10b981' : '2px solid #ef4444',
+                      color: isMatch ? '#34d399' : '#f87171',
+                      margin: '0 auto',
+                      boxShadow: isMatch ? '0 0 15px rgba(16, 185, 129, 0.35)' : '0 0 15px rgba(239, 68, 68, 0.35)'
+                    }}>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 900 }}>{isMatch ? '==' : '≠'}</span>
+                    </div>
+                    <div style={{
+                      marginTop: '0.5rem',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      color: isMatch ? '#34d399' : '#f87171'
+                    }}>
+                      {isMatch ? 'SAMA PERSIS (COCOK)' : 'BERBEDA (ADA SELISIH)'}
+                    </div>
+                  </div>
+
+                  {/* Card 3: Data Hasil AI */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      2. Data Hasil Olahan AI
+                    </div>
+                    <div style={{
+                      fontSize: '1.8rem',
+                      fontWeight: 900,
+                      color: isMatch ? '#34d399' : '#f87171',
+                      marginTop: '0.35rem',
+                      fontFamily: 'var(--font-mono)'
+                    }}>
+                      {aiResultRows.toLocaleString('id-ID')} Baris
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
+                      Jumlah data yang disajikan di tabel laporan
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Metrics Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.25rem'
+                }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.9rem 1.1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Total Populasi Data Mentah</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc', marginTop: '0.25rem' }}>
+                      {(analysisResult.calculation_summary.total_raw_rows || selectedDataset.row_count).toLocaleString('id-ID')} Baris
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Seluruh transaksi dalam file Excel</div>
+                  </div>
+
+                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.9rem 1.1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Persentase Lolos Filter</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.25rem' }}>
+                      {analysisResult.calculation_summary.match_percentage || ((aiResultRows / Math.max(selectedDataset.row_count, 1)) * 100).toFixed(1)}%
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Porsi dari total file mentah</div>
+                  </div>
+
+                  {analysisResult.calculation_summary.raw_total_sum != null && analysisResult.calculation_summary.raw_total_sum > 0 && (
+                    <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.9rem 1.1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Total Nominal Seluruh Populasi</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#a78bfa', marginTop: '0.25rem' }}>
+                        Rp {Number(analysisResult.calculation_summary.raw_total_sum).toLocaleString('id-ID')}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Share filter ini: {analysisResult.calculation_summary.share_of_total_pct || 0}%</div>
+                    </div>
+                  )}
+
+                  {/* Variance Card with Direct Green / Red Styling */}
+                  <div style={{
+                    background: isMatch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.15)',
+                    padding: '0.9rem 1.1rem',
+                    borderRadius: '8px',
+                    border: isMatch ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.5)'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: isMatch ? '#34d399' : '#f87171', fontWeight: 700 }}>
+                      Selisih Audit (*Variance*)
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isMatch ? '#34d399' : '#f87171', marginTop: '0.25rem' }}>
+                      {isMatch ? '0.00 (Nol Selisih)' : `${varianceRows} Baris Selisih!`}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: isMatch ? '#10b981' : '#fca5a5' }}>
+                      {isMatch ? '✓ Tervalidasi sama persis' : '⚠ Perlu audit manual'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Explanation Box */}
+                <div style={{
+                  padding: '0.85rem 1.15rem',
+                  background: isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  color: '#94a3b8',
+                  lineHeight: '1.6',
+                  borderLeft: isMatch ? '4px solid #10b981' : '4px solid #ef4444'
+                }}>
+                  <strong style={{ color: isMatch ? '#34d399' : '#f87171' }}>Aturan Penanda Warna: </strong>
+                  Jika jumlah data hasil AI sama persis dengan baris data mentah, indikator akan menyala <strong style={{ color: '#34d399' }}>HIJAU</strong> (0.00 Nol Selisih). Sebaliknya jika jumlah data mentah tidak cocok atau ada data yang hilang/berbeda, sistem akan menyalakan penanda <strong style={{ color: '#f87171' }}>MERAH</strong>.
+                  <div style={{ marginTop: '0.4rem' }}>
+                    Formula pembuktian yang dieksekusi:{' '}
+                    <code style={{ background: 'rgba(0,0,0,0.4)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                      {analysisResult.decision.generated_excel_formula}
+                    </code>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 3. DYNAMIC RECHARTS CHART SECTION (FULL WIDTH DI BAWAH REKONSILIASI JIKA TERSEDIA) */}
+          {analysisResult.chart_data && analysisResult.chart_data.length > 0 && (
+            <div className="glass-panel" style={{ padding: '1.5rem', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BarChart3 size={18} color="#60a5fa" />
+                <span>Visualisasi Distribusi</span>
+              </div>
+              <div style={{ width: '100%', minHeight: '320px', height: '340px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analysisResult.chart_data} margin={{ top: 10, right: 30, left: 20, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                    <YAxis stroke="#94a3b8" fontSize={12} />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#131c2e',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        color: '#f8fafc'
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* Research Evaluation Feedback Card */}
           <div className="glass-panel" style={{

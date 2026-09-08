@@ -90,7 +90,7 @@ class ProfilerService:
         return []
 
     @classmethod
-    def load_dataset_file(cls, file_path: Path, sheet_name: Optional[str] = None) -> Tuple[pd.DataFrame, str, list[str]]:
+    def load_dataset_file(cls, file_path: Path, sheet_name: Optional[str] = None, known_sheets: Optional[list[str]] = None) -> Tuple[pd.DataFrame, str, list[str]]:
         """
         Reads Excel (.xlsx, .xls) or CSV files into DataFrame.
         Intelligently auto-selects the main data sheet if multiple sheets exist.
@@ -98,10 +98,11 @@ class ProfilerService:
         """
         suffix = file_path.suffix.lower()
         selected_sheet = sheet_name
-        available_sheets = []
+        available_sheets = list(known_sheets) if known_sheets else []
 
         if suffix in [".xlsx", ".xls"]:
-            available_sheets = cls.get_available_sheets(file_path)
+            if not available_sheets:
+                available_sheets = cls.get_available_sheets(file_path)
             if not selected_sheet:
                 if len(available_sheets) == 1:
                     selected_sheet = available_sheets[0]
@@ -141,13 +142,26 @@ class ProfilerService:
         
         return df, selected_sheet or "Sheet1", available_sheets
 
+    @staticmethod
+    def extract_preview_data(df: pd.DataFrame, limit: int = 1000) -> list[dict[str, Any]]:
+        """Fast helper to extract JSON-safe preview records for first N rows (or all if limit <= 0)."""
+        preview_df = df.head(limit).copy() if limit and limit > 0 else df.copy()
+        for col in preview_df.columns:
+            if pd.api.types.is_datetime64_any_dtype(preview_df[col]):
+                preview_df[col] = preview_df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                preview_df[col] = preview_df[col].apply(
+                    lambda v: None if pd.isna(v) else (int(v) if isinstance(v, (np.integer, int)) else (float(v) if isinstance(v, (np.floating, float)) else str(v)))
+                )
+        return preview_df.to_dict(orient="records")
+
     @classmethod
     def profile_dataframe(cls, df: pd.DataFrame) -> Tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Profiles the entire dataframe and returns:
         1. summary metadata
         2. column profiling statistics list
-        3. preview data (first 50 rows)
+        3. preview data (up to 1000 rows)
         """
         total_rows, total_cols = df.shape
         columns_profile = []
@@ -167,8 +181,9 @@ class ProfilerService:
             unique_count = int(series.nunique(dropna=True))
             unique_pct = round((unique_count / max(total_rows, 1)) * 100, 2)
 
-            # Sample values (clean JSON serializable)
-            non_null_samples = series.dropna().unique()[:8]
+            # Sample values (clean JSON serializable) - allow up to 100 for categorical/text to capture all categories/models
+            max_samples = 100 if inferred_type in ["Categorical", "Text"] or unique_count <= 100 else 20
+            non_null_samples = series.dropna().unique()[:max_samples]
             sample_values = [str(x) if isinstance(x, (pd.Timestamp, np.datetime64)) else (float(x) if isinstance(x, (np.floating, float)) else (int(x) if isinstance(x, (np.integer, int)) else str(x))) for x in non_null_samples]
 
             min_val = None
@@ -178,7 +193,6 @@ class ProfilerService:
 
             if inferred_type == "Numeric":
                 numeric_cols.append(col_name)
-                # Convert to numeric safely for stats
                 num_series = pd.to_numeric(series, errors="coerce")
                 if not num_series.dropna().empty:
                     min_val = str(round(float(num_series.min()), 2))
@@ -186,7 +200,6 @@ class ProfilerService:
                     mean_val = str(round(float(num_series.mean()), 2))
             elif inferred_type == "Date":
                 date_cols.append(col_name)
-                # Parse min max dates
                 dt_series = pd.to_datetime(series, errors="coerce")
                 valid_dts = dt_series.dropna()
                 if not valid_dts.empty:
@@ -226,15 +239,5 @@ class ProfilerService:
             "text_columns": text_cols,
         }
 
-        # Preview Data (first 50 rows, JSON safe)
-        preview_df = df.head(50).copy()
-        for col in preview_df.columns:
-            if pd.api.types.is_datetime64_any_dtype(preview_df[col]):
-                preview_df[col] = preview_df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                preview_df[col] = preview_df[col].apply(
-                    lambda v: None if pd.isna(v) else (int(v) if isinstance(v, (np.integer, int)) else (float(v) if isinstance(v, (np.floating, float)) else str(v)))
-                )
-        preview_data = preview_df.to_dict(orient="records")
-
+        preview_data = cls.extract_preview_data(df, limit=1000)
         return summary, columns_profile, preview_data

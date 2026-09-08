@@ -66,16 +66,27 @@ export const App: React.FC = () => {
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initial Data Fetching
+  // Initial Data Fetching with Persistent Selection
   useEffect(() => {
     const fetchDatasets = async () => {
       try {
         const list = await api.listDatasets();
         setDatasets(list);
         if (list.length > 0) {
-          // Fetch full detail for the first dataset
-          const detail = await api.getDatasetDetail(list[0].id);
-          setSelectedDataset(detail);
+          // Check if user previously selected a dataset (saved in localStorage)
+          const savedId = localStorage.getItem('smart_excel_active_dataset_id');
+          const targetDataset = list.find((d) => d.id === savedId)
+            || list.find((d) => d.filename.toLowerCase().includes('mobil') || d.filename.toLowerCase().includes('penjualan'))
+            || list[0];
+
+          setSelectedDataset(targetDataset);
+          try {
+            const detail = await api.getDatasetDetail(targetDataset.id);
+            setSelectedDataset(detail);
+            localStorage.setItem('smart_excel_active_dataset_id', detail.id);
+          } catch (detailErr) {
+            console.warn('Could not fetch full dataset detail, using summary:', detailErr);
+          }
         }
       } catch (err) {
         console.error('Failed to initialize datasets', err);
@@ -87,9 +98,12 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSelectDataset = async (ds: Dataset) => {
+    setSelectedDataset(ds);
+    localStorage.setItem('smart_excel_active_dataset_id', ds.id);
     try {
       const detail = await api.getDatasetDetail(ds.id);
       setSelectedDataset(detail);
+      localStorage.setItem('smart_excel_active_dataset_id', detail.id);
     } catch (err) {
       setSelectedDataset(ds);
     }
@@ -98,19 +112,27 @@ export const App: React.FC = () => {
   const handleDatasetUploaded = (newDs: Dataset) => {
     setDatasets((prev) => [newDs, ...prev]);
     setSelectedDataset(newDs);
+    localStorage.setItem('smart_excel_active_dataset_id', newDs.id);
     setActiveTab('upload_preview');
   };
 
   const handleDatasetUpdated = (updatedDs: Dataset) => {
     setDatasets((prev) => prev.map((d) => (d.id === updatedDs.id ? updatedDs : d)));
     setSelectedDataset(updatedDs);
+    localStorage.setItem('smart_excel_active_dataset_id', updatedDs.id);
   };
 
   const handleDatasetDeleted = (deletedId: string) => {
     const updated = datasets.filter((d) => d.id !== deletedId);
     setDatasets(updated);
     if (selectedDataset?.id === deletedId) {
-      setSelectedDataset(updated.length > 0 ? updated[0] : null);
+      const nextDs = updated.length > 0 ? updated[0] : null;
+      setSelectedDataset(nextDs);
+      if (nextDs) {
+        localStorage.setItem('smart_excel_active_dataset_id', nextDs.id);
+      } else {
+        localStorage.removeItem('smart_excel_active_dataset_id');
+      }
     }
   };
 

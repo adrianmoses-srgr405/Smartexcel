@@ -38,7 +38,7 @@ def analyze_query(
     columns = dataset.columns
 
     # 1. AI Intent Parsing
-    parsed_intent = AIService.parse_query(payload.query, columns)
+    parsed_intent = AIService.parse_query(payload.query, columns, df=df)
 
     # 2. Formula Decision Engine
     decision = decision_engine.decide_formula(parsed_intent, columns)

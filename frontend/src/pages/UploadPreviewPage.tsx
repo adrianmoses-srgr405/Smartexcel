@@ -33,6 +33,7 @@ export const UploadPreviewPage: React.FC<UploadPreviewPageProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+  const [rowLimit, setRowLimit] = useState<number | 'all'>('all');
   const [isSwitchingSheet, setIsSwitchingSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,6 +84,8 @@ export const UploadPreviewPage: React.FC<UploadPreviewPageProps> = ({
       String(val).toLowerCase().includes(searchFilter.toLowerCase())
     )
   );
+
+  const displayedRows = rowLimit === 'all' ? filteredRows : filteredRows.slice(0, rowLimit);
 
   return (
     <div className="content-body animate-fade-in">
@@ -257,6 +260,37 @@ export const UploadPreviewPage: React.FC<UploadPreviewPageProps> = ({
                 />
               </div>
 
+              {/* Row Limit Selector */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                background: 'rgba(255, 255, 255, 0.04)',
+                padding: '0.2rem 0.4rem',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginRight: '0.2rem' }}>Tampilkan:</span>
+                {[50, 100, 500, 'all'].map((lim) => (
+                  <button
+                    key={lim}
+                    onClick={() => setRowLimit(lim as any)}
+                    className="btn btn-ghost"
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.72rem',
+                      borderRadius: '4px',
+                      background: rowLimit === lim ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
+                      color: rowLimit === lim ? '#34d399' : '#94a3b8',
+                      fontWeight: rowLimit === lim ? 700 : 500,
+                      border: rowLimit === lim ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent'
+                    }}
+                  >
+                    {lim === 'all' ? `Semua (${filteredRows.length})` : lim}
+                  </button>
+                ))}
+              </div>
+
               {/* Delete Button */}
               <button
                 onClick={async () => {
@@ -302,8 +336,8 @@ export const UploadPreviewPage: React.FC<UploadPreviewPageProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.length > 0 ? (
-                  filteredRows.map((row, rIdx) => (
+                {displayedRows.length > 0 ? (
+                  displayedRows.map((row, rIdx) => (
                     <tr key={rIdx}>
                       <td style={{ textAlign: 'center', color: '#64748b', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
                         {rIdx + 1}
@@ -327,8 +361,22 @@ export const UploadPreviewPage: React.FC<UploadPreviewPageProps> = ({
               </tbody>
             </table>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b', textAlign: 'right' }}>
-            Menampilkan {filteredRows.length} baris preview data mentah
+          <div style={{
+            marginTop: '0.75rem',
+            fontSize: '0.78rem',
+            color: '#94a3b8',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
+          }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              💡 Menampilkan data mentah langsung dari lembar Excel. AI akan selalu memproses <strong>seluruh {selectedDataset.row_count.toLocaleString('id-ID')} baris data</strong> saat perhitungan query.
+            </div>
+            <div style={{ fontWeight: 600, color: '#38bdf8' }}>
+              Menampilkan {displayedRows.length} dari {filteredRows.length} baris (Total Populasi File: {selectedDataset.row_count.toLocaleString('id-ID')} baris)
+            </div>
           </div>
         </div>
       ) : (

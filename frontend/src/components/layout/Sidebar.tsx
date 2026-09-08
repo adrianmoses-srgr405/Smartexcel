@@ -56,30 +56,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }}>
       {/* Brand Header */}
       <div style={{
-        padding: '1.5rem 1.25rem',
+        padding: '1.25rem 1.25rem',
         borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.75rem'
+        gap: '0.85rem'
       }}>
         <div style={{
-          width: '40px',
-          height: '40px',
+          width: '44px',
+          height: '44px',
           borderRadius: '10px',
-          background: 'linear-gradient(135deg, #10b981, #059669)',
+          background: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+          padding: '4px',
+          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+          overflow: 'hidden',
+          flexShrink: 0
         }}>
-          <Building2 size={22} color="#ffffff" />
+          <img
+            src="/logo-ptpn.svg"
+            alt="Logo PTPN IV"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
         <div>
-          <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
+          <div style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
             SMART EXCEL
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, letterSpacing: '0.05em' }}>
-            PTPN AI MODELING
+          <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, letterSpacing: '0.05em' }}>
+            PTPN IV PALMCO
           </div>
         </div>
       </div>
