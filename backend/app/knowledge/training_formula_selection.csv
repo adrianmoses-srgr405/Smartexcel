@@ -1,0 +1,117 @@
+id,user_request,intent,operation,target_field,filter_count,grouping_count,has_date_filter,has_multiple_criteria,target_data_type,formula_label
+1,Hitung total produksi TBS olah seluruh PKS,aggregation,SUM,tbs_olah_ton,0,0,0,0,numeric,SUM
+2,Berapa grand total penerimaan TBS,aggregation,SUM,tbs_terima_ton,0,0,0,0,numeric,SUM
+3,Hitung total harga netto penjualan,aggregation,SUM,Harga_Netto,0,0,0,0,numeric,SUM
+4,Berapa total kuantitas stok solar,aggregation,SUM,volume_liter,0,0,0,0,numeric,SUM
+5,Jumlahkan seluruh biaya lembur karyawan,aggregation,SUM,biaya_lembur,0,0,0,0,numeric,SUM
+6,Total pendapatan kotor tahun berjalan,aggregation,SUM,gross_revenue,0,0,0,0,numeric,SUM
+7,Hitung total produksi CPO untuk PKS Sei Galuh,aggregation,SUM,cpo_prod_ton,1,0,0,0,numeric,SUMIF
+8,Total penjualan mobil Toyota di dealer,aggregation,SUM,Harga_Netto,1,0,0,0,numeric,SUMIF
+9,Berapa total TBS olah pada shift Pagi,aggregation,SUM,tbs_olah_ton,1,0,0,0,numeric,SUMIF
+10,Hitung penerimaan TBS dari Afdeling I,aggregation,SUM,tbs_terima_ton,1,0,0,0,numeric,SUMIF
+11,Total penjualan di Kota Pekanbaru,aggregation,SUM,Harga_Netto,1,0,0,0,numeric,SUMIF
+12,Berapa total volume solar untuk generator 1,aggregation,SUM,volume_liter,1,0,0,0,numeric,SUMIF
+13,Hitung total jam kerja departemen QC,aggregation,SUM,jam_kerja,1,0,0,0,numeric,SUMIF
+14,Total biaya pemeliharaan mesin Press 02,aggregation,SUM,biaya_rupiah,1,0,0,0,numeric,SUMIF
+15,Total produksi CPO PKS Lubuk Dalam pada bulan Februari 2024,aggregation,SUM,cpo_prod_ton,2,0,1,1,numeric,SUMIFS
+16,Hitung total penjualan Toyota di Pekanbaru pada Februari 2024,aggregation,SUM,Harga_Netto,2,0,1,1,numeric,SUMIFS
+17,Berapa total TBS olah afdeling III shift Pagi pada tanggal 10 Feb 2024,aggregation,SUM,tbs_olah_ton,3,0,1,1,numeric,SUMIFS
+18,Total pengeluaran pupuk Urea di Kebun Tandun periode Q1,aggregation,SUM,qty_sak,2,0,1,1,numeric,SUMIFS
+19,Hitung omset Daihatsu transmisi Matic di Kampar 2024,aggregation,SUM,Harga_Netto,3,0,0,1,numeric,SUMIFS
+20,Total volume CPO terkirim ke Belawan via Truk Tangki A pada Januari,aggregation,SUM,volume_ton,3,0,1,1,numeric,SUMIFS
+21,Total produksi kernel PKS Sei Rokan sortasi Grade A bulan Maret,aggregation,SUM,kernel_prod_ton,2,0,1,1,numeric,SUMIFS
+22,Total penjualan SUV transmisi Automatic tahun 2024,aggregation,SUM,Harga_Netto,2,0,1,1,numeric,SUMIFS
+23,Berapa rata-rata rendemen CPO seluruh pabrik,aggregation,AVERAGE,rendemen_cpo_pct,0,0,0,0,numeric,AVERAGE
+24,Hitung rata-rata kadar air kernel,aggregation,AVERAGE,kadar_air_pct,0,0,0,0,numeric,AVERAGE
+25,Rata-rata harga jual unit mobil,aggregation,AVERAGE,Harga_Netto,0,0,0,0,numeric,AVERAGE
+26,Berapa rata-rata TBS olah per hari,aggregation,AVERAGE,tbs_olah_ton,0,0,0,0,numeric,AVERAGE
+27,Rata-rata jam kerja staf pabrik,aggregation,AVERAGE,jam_kerja,0,0,0,0,numeric,AVERAGE
+28,Hitung rata-rata diskon penjualan kendaraan,aggregation,AVERAGE,Diskon_Nominal,0,0,0,0,numeric,AVERAGE
+29,Berapa rata-rata rendemen CPO di PKS Tandun,aggregation,AVERAGE,rendemen_cpo_pct,1,0,0,0,numeric,AVERAGEIF
+30,Rata-rata harga jual mobil merek Honda,aggregation,AVERAGE,Harga_Netto,1,0,0,0,numeric,AVERAGEIF
+31,Hitung rata-rata kadar asam lemak bebas FFA untuk CPO Tangki 01,aggregation,AVERAGE,ffa_pct,1,0,0,0,numeric,AVERAGEIF
+32,Rata-rata TBS olah khusus shift Malam,aggregation,AVERAGE,tbs_olah_ton,1,0,0,0,numeric,AVERAGEIF
+33,Berapa rata-rata diskon di Pekanbaru,aggregation,AVERAGE,Diskon_Nominal,1,0,0,0,numeric,AVERAGEIF
+34,Rata-rata pemakaian solar traktor kebun Rayon B,aggregation,AVERAGE,solar_liter,1,0,0,0,numeric,AVERAGEIF
+35,Hitung rata-rata rendemen CPO PKS Sei Tapung periode Februari 2024,aggregation,AVERAGE,rendemen_cpo_pct,2,0,1,1,numeric,AVERAGEIFS
+36,Rata-rata harga jual Toyota Avanza pada kuartal 1,aggregation,AVERAGE,Harga_Netto,2,0,1,1,numeric,AVERAGEIFS
+37,Berapa rata-rata FFA CPO Grade Super pada bulan Januari di PKS Galuh,aggregation,AVERAGE,ffa_pct,2,0,1,1,numeric,AVERAGEIFS
+38,Rata-rata diskon mobil Matic di Kampar selama promosi Imlek,aggregation,AVERAGE,Diskon_Nominal,2,0,1,1,numeric,AVERAGEIFS
+39,Hitung rata-rata jam olah boiler unit 2 saat shift Pagi bulan Feb,aggregation,AVERAGE,jam_olah,3,0,1,1,numeric,AVERAGEIFS
+40,Rata-rata rendemen inti sawit Afdeling II dengan sortasi mantap,aggregation,AVERAGE,rendemen_kernel_pct,2,0,0,1,numeric,AVERAGEIFS
+41,Hitung total jumlah transaksi penjualan mobil,aggregation,COUNT,Nomor_Faktur,0,0,0,0,categorical,COUNT
+42,Berapa banyak data pengiriman TBS masuk,aggregation,COUNT,No_Tiket_Timbang,0,0,0,0,categorical,COUNT
+43,Jumlah seluruh batch pengolahan CPO di database,aggregation,COUNT,id_batch,0,0,0,0,numeric,COUNT
+44,Berapa total pencatatan log laboratorium,aggregation,COUNT,sample_id,0,0,0,0,categorical,COUNT
+45,Hitung total baris data karyawan yang hadir,aggregation,COUNT,nik,0,0,0,0,categorical,COUNT
+46,Berapa unit mobil merek Mitsubishi yang terjual,aggregation,COUNT,Nomor_Faktur,1,0,0,0,categorical,COUNTIF
+47,Hitung frekuensi pengiriman TBS dari Afdeling IV,aggregation,COUNT,No_Tiket_Timbang,1,0,0,0,categorical,COUNTIF
+48,Berapa kali boiler mengalami downtime maintenance,aggregation,COUNT,id_log,1,0,0,0,categorical,COUNTIF
+49,Jumlah transaksi tunai di kasir penjualan,aggregation,COUNT,Nomor_Faktur,1,0,0,0,categorical,COUNTIF
+50,Berapa batch CPO yang lolos uji laboratorium Grade Premium,aggregation,COUNT,sample_id,1,0,0,0,categorical,COUNTIF
+51,Hitung jumlah SPK pengangkutan truk PT Maju Sawit,aggregation,COUNT,no_spk,1,0,0,0,categorical,COUNTIF
+52,Berapa transaksi mobil Toyota di Pekanbaru selama Februari 2024,aggregation,COUNT,Nomor_Faktur,2,0,1,1,categorical,COUNTIFS
+53,Hitung berapa kali pengiriman TBS dari Rayon A ditolak pada shift Malam,aggregation,COUNT,No_Tiket_Timbang,2,0,0,1,categorical,COUNTIFS
+54,Jumlah batch CPO PKS Tandun dengan FFA di atas standar pada Maret 2024,aggregation,COUNT,sample_id,2,0,1,1,categorical,COUNTIFS
+55,Berapa SPK pengangkutan CPO ke Dumai via Kapal Tongkang minggu 2,aggregation,COUNT,no_spk,2,0,1,1,categorical,COUNTIFS
+56,Hitung jumlah pembeli kredit kendaraan di Kampar tahun 2024,aggregation,COUNT,Nomor_Faktur,2,0,1,1,categorical,COUNTIFS
+57,Berapa rendemen CPO tertinggi yang pernah dicapai,ranking,MAX,rendemen_cpo_pct,0,0,0,0,numeric,MAX
+58,Cari harga penjualan mobil termahal,ranking,MAX,Harga_Netto,0,0,0,0,numeric,MAX
+59,TBS olah maksimum harian di seluruh PKS,ranking,MAX,tbs_olah_ton,0,0,0,0,numeric,MAX
+60,Berapa kadar asam lemak bebas FFA paling tinggi di lab,ranking,MAX,ffa_pct,0,0,0,0,numeric,MAX
+61,Diskon terbesar yang pernah diberikan sales,ranking,MAX,Diskon_Nominal,0,0,0,0,numeric,MAX
+62,Berapa rendemen CPO terendah yang tercatat,ranking,MIN,rendemen_cpo_pct,0,0,0,0,numeric,MIN
+63,Cari harga mobil paling murah di showroom,ranking,MIN,Harga_Netto,0,0,0,0,numeric,MIN
+64,TBS olah minimum per batch di pabrik,ranking,MIN,tbs_olah_ton,0,0,0,0,numeric,MIN
+65,Kadar air kernel paling rendah yang dicapai pengering,ranking,MIN,kadar_air_pct,0,0,0,0,numeric,MIN
+66,Diskon terkecil dalam catatan promo,ranking,MIN,Diskon_Nominal,0,0,0,0,numeric,MIN
+67,Cari nama pembeli berdasarkan nomor faktur FAK-2024-0089,lookup,XLOOKUP,Nama_Pelanggan,1,0,0,0,text,XLOOKUP
+68,Ambil tanggal pengiriman tiket timbang TT-09881,lookup,XLOOKUP,Tanggal,1,0,0,0,date,XLOOKUP
+69,Lookup kapasitas terpasang untuk kode unit boiler BL-04,lookup,XLOOKUP,kapasitas_ton_jam,1,0,0,0,numeric,XLOOKUP
+70,Cari nomor telepon sopir truk plat BM 8899 QK,lookup,XLOOKUP,no_hp_sopir,1,0,0,0,text,XLOOKUP
+71,Ambil standar rendemen untuk afdeling Rayon 1,lookup,XLOOKUP,target_rendemen,1,0,0,0,numeric,XLOOKUP
+72,Rekap total TBS olah dikelompokkan per afdeling dan per shift,pivot_summary,PIVOT,tbs_olah_ton,0,2,0,1,numeric,PIVOT
+73,Tampilkan tabel silang penjualan mobil per Merek dan per Kota,pivot_summary,PIVOT,Harga_Netto,0,2,0,1,numeric,PIVOT
+74,Buat ringkasan matriks produksi CPO per PKS per bulan,pivot_summary,PIVOT,cpo_prod_ton,0,2,1,1,numeric,PIVOT
+75,Rekap jumlah karyawan per departemen dan level jabatan,pivot_summary,PIVOT,nik,0,2,0,1,categorical,PIVOT
+76,Tabel pivot pemakaian solar per nomor traktor dan per kebun,pivot_summary,PIVOT,volume_liter,0,2,0,1,numeric,PIVOT
+77,Berapa total berat TBS terima dari Kebun Sei Buatan,aggregation,SUM,tbs_terima_ton,1,0,0,0,numeric,SUMIF
+78,Total diskon yang diberikan oleh SPK Kota Dumai,aggregation,SUM,Diskon_Nominal,1,0,0,0,numeric,SUMIF
+79,Hitung total jam lembur mekanik bengkel PKS,aggregation,SUM,jam_lembur,1,0,0,0,numeric,SUMIF
+80,Berapa total volume CPO yang dikirim oleh CV Riau Transindo,aggregation,SUM,volume_ton,1,0,0,0,numeric,SUMIF
+81,Total TBS olah PKS Tandun shift Malam pada 15 Februari 2024,aggregation,SUM,tbs_olah_ton,3,0,1,1,numeric,SUMIFS
+82,Hitung total penjualan Daihatsu warna Hitam di Duri bulan Maret,aggregation,SUM,Harga_Netto,3,0,1,1,numeric,SUMIFS
+83,Total biaya sparepart stasiun Thresher bulan Januari di Sei Galuh,aggregation,SUM,biaya_rupiah,2,0,1,1,numeric,SUMIFS
+84,Berapa total penerimaan TBS sortasi Buah Mentah Kebun Tandun periode 2024,aggregation,SUM,tbs_terima_ton,2,0,1,1,numeric,SUMIFS
+85,Rata-rata tonase TBS per truk pengangkut dari Kebun Tapung,aggregation,AVERAGE,tbs_terima_ton,1,0,0,0,numeric,AVERAGEIF
+86,Hitung rata-rata diskon mobil Suzuki di Pekanbaru,aggregation,AVERAGE,Diskon_Nominal,2,0,0,1,numeric,AVERAGEIFS
+87,Rata-rata rendemen CPO di PKS Lubuk Dalam shift Pagi tanggal 20 Feb,aggregation,AVERAGE,rendemen_cpo_pct,3,0,1,1,numeric,AVERAGEIFS
+88,Berapa kali truk ekspedisi PT Sawit Jaya bongkar muat di pabrik,aggregation,COUNT,no_antrian,1,0,0,0,categorical,COUNTIF
+89,Hitung berapa unit Honda Brio Manual terjual di Bengkalis 2024,aggregation,COUNT,Nomor_Faktur,3,0,1,1,categorical,COUNTIFS
+90,Berapa sampel CPO asam tinggi yang terdeteksi di PKS Sei Rokan bulan Feb,aggregation,COUNT,sample_id,2,0,1,1,categorical,COUNTIFS
+91,Cari spesifikasi kapasitas tangki storage CPO kode ST-05,lookup,XLOOKUP,kapasitas_m3,1,0,0,0,numeric,XLOOKUP
+92,Lookup nama suplier untuk id vendor VEND-0012,lookup,XLOOKUP,nama_suplier,1,0,0,0,text,XLOOKUP
+93,Buat matriks rekapitulasi penjualan unit per model dan tipe pembayaran,pivot_summary,PIVOT,Harga_Netto,0,2,0,1,numeric,PIVOT
+94,Rekapitulasi total jam henti pabrik per stasiun dan penyebab downtime,pivot_summary,PIVOT,jam_downtime,0,2,0,1,numeric,PIVOT
+95,Jumlahkan seluruh nilai penjualan tanpa filter,aggregation,SUM,Harga_Netto,0,0,0,0,numeric,SUM
+96,Hitung grand total tonase CPO terkirim ke seluruh pelabuhan,aggregation,SUM,cpo_kirim_ton,0,0,0,0,numeric,SUM
+97,Rata-rata harga bersih mobil tanpa kriteria apapun,aggregation,AVERAGE,Harga_Netto,0,0,0,0,numeric,AVERAGE
+98,Berapa rata-rata kadar kotoran CPO di semua tangki timbun,aggregation,AVERAGE,kotoran_pct,0,0,0,0,numeric,AVERAGE
+99,Berapa total baris transaksi di lembar kerja ini,aggregation,COUNT,id_transaksi,0,0,0,0,categorical,COUNT
+100,Hitung jumlah seluruh data pengujian mutu TBS di laboratorium,aggregation,COUNT,no_lab,0,0,0,0,categorical,COUNT
+101,Ambil data mobil brio,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+102,Tampilkan semua data mobil brio dalam bentuk tabel,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+103,Filter data mobil brio,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+104,Ekstrak seluruh transaksi mobil brio,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+105,Ambil data penjualan mobil merek Toyota,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+106,Tampilkan tabel data brio di Pekanbaru,filter_recap,FILTER,None,2,0,0,1,none,FILTER
+107,Filter seluruh baris data mobil Avanza,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+108,Ambil data pengiriman TBS dari Afdeling 1,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+109,Tampilkan data batch CPO dengan kadar asam tinggi,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+110,Ekstrak data transaksi sales Budi Santoso,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+111,Ambil seluruh baris data mobil Daihatsu transmisi Matic,filter_recap,FILTER,None,2,0,0,1,none,FILTER
+112,Tampilkan data penerimaan TBS pada bulan Februari 2024,filter_recap,FILTER,None,1,0,1,0,none,FILTER
+113,Daftar lengkap transaksi mobil Brio di showroom,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+114,Filter tabel data karyawan divisi QC,filter_recap,FILTER,None,1,0,0,0,none,FILTER
+115,Ambil data transaksi mobil brio warna hitam,filter_recap,FILTER,None,2,0,0,1,none,FILTER
+
