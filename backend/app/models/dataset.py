@@ -17,7 +17,22 @@ class Dataset(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     columns = relationship("DatasetColumn", back_populates="dataset", cascade="all, delete-orphan")
+    sheets = relationship("DatasetSheet", back_populates="dataset", cascade="all, delete-orphan")
     analyses = relationship("AnalysisHistory", back_populates="dataset", cascade="all, delete-orphan")
+
+class DatasetSheet(Base):
+    __tablename__ = "dataset_sheets"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id = Column(String(36), ForeignKey("datasets.id"), nullable=False)
+    sheet_name = Column(String(255), nullable=False)
+    row_count = Column(Integer, default=0)
+    column_count = Column(Integer, default=0)
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = inactive
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    dataset = relationship("Dataset", back_populates="sheets")
+
 
 class DatasetColumn(Base):
     __tablename__ = "dataset_columns"

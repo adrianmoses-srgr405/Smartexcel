@@ -95,6 +95,35 @@ export interface AnalysisResult {
   table_rows: Record<string, any>[];
   chart_data?: { name: string; value: number }[];
   execution_time_ms: number;
+  formula_name?: string;
+  generated_formula?: string;
+  explanation?: {
+    formula_selection?: string;
+    target_column?: string;
+    filters_applied?: any[];
+  };
+  tasks?: Array<{
+    task_id?: string;
+    task_type?: string;
+    operation?: string;
+    formula_name?: string;
+    generated_formula?: string;
+    target?: string;
+    target_term?: string;
+    columns?: Record<string, any>;
+    execution?: {
+      executed?: boolean;
+      result?: any;
+      status?: string;
+    };
+    confidence?: any;
+    status?: string;
+  }>;
+  summary?: Record<string, any>;
+  parameters?: Record<string, any>;
+  columns?: Record<string, any>;
+  formula_plan?: Record<string, any>;
+  group_by?: string[];
 }
 
 export interface FormulaKnowledgeItem {

@@ -1,11 +1,12 @@
-import requests
 import openpyxl
+from fastapi.testclient import TestClient
+from app.main import app
 
-BASE_URL = "http://127.0.0.1:8000/api/v1"
+client = TestClient(app)
 
 def test_full_e2e_workflow():
     # 1. Check datasets
-    res = requests.get(f"{BASE_URL}/datasets")
+    res = client.get("/api/v1/datasets")
     assert res.status_code == 200, res.text
     datasets = res.json()
     assert len(datasets) > 0, "No dataset found"
@@ -14,7 +15,7 @@ def test_full_e2e_workflow():
     print(f"[OK] Dataset verified: {mutasi_ds['filename']} ({mutasi_ds['row_count']} rows)")
 
     # 2. Check dataset detail & profiling
-    res = requests.get(f"{BASE_URL}/datasets/{ds_id}")
+    res = client.get(f"/api/v1/datasets/{ds_id}")
     assert res.status_code == 200
     detail = res.json()
     col_names = [c["original_name"] for c in detail["columns"]]
@@ -25,7 +26,7 @@ def test_full_e2e_workflow():
 
     # 3. Test Main Scenario 1: "Buat rekap jumlah barang keluar per merek untuk Februari 2024"
     q1 = "Buat rekap jumlah barang keluar per merek untuk Februari 2024"
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q1})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q1})
     assert res.status_code == 200, res.text
     ans1 = res.json()
     assert ans1["decision"]["formula_id"] in ["SUMIFS", "SUMIF"]
@@ -36,7 +37,7 @@ def test_full_e2e_workflow():
 
     # 4. Test Scenario 2: "Berapa total barang keluar merek Lenovo pada Februari 2024?"
     q2 = "Berapa total barang keluar merek Lenovo pada Februari 2024?"
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q2})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q2})
     assert res.status_code == 200
     ans2 = res.json()
     assert ans2["decision"]["formula_id"] == "SUMIFS"
@@ -45,7 +46,7 @@ def test_full_e2e_workflow():
 
     # 5. Test Scenario 3: "Berapa total barang keluar merek Lenovo?" (Single criteria SUMIF)
     q3 = "Berapa total barang keluar merek Lenovo?"
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q3})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q3})
     assert res.status_code == 200
     ans3 = res.json()
     assert ans3["decision"]["formula_id"] == "SUMIF"
@@ -53,7 +54,7 @@ def test_full_e2e_workflow():
 
     # 6. Test Scenario 4: "Berapa total barang keluar?" (Zero filter SUM)
     q4 = "Berapa total barang keluar?"
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q4})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q4})
     assert res.status_code == 200
     ans4 = res.json()
     assert ans4["decision"]["formula_id"] == "SUM"
@@ -61,7 +62,7 @@ def test_full_e2e_workflow():
 
     # 7. Test Scenario 5: "Berapa rata-rata barang keluar per merek?" (AVERAGE)
     q5 = "Berapa rata-rata barang keluar per merek?"
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q5})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q5})
     assert res.status_code == 200
     ans5 = res.json()
     assert "AVERAGE" in ans5["decision"]["formula_id"]
@@ -69,14 +70,14 @@ def test_full_e2e_workflow():
 
     # 8. Test Scenario 6: "Cari barang dengan jumlah keluar paling tinggi." (MAX)
     q6 = "Cari barang dengan jumlah keluar paling tinggi."
-    res = requests.post(f"{BASE_URL}/query/analyze", json={"dataset_id": ds_id, "query": q6})
+    res = client.post("/api/v1/query/analyze", json={"dataset_id": ds_id, "query": q6})
     assert res.status_code == 200
     ans6 = res.json()
     assert ans6["decision"]["formula_id"] == "MAX"
     print(f"[OK] Scenario 6 (MAX): Formula: {ans6['decision']['generated_excel_formula']}")
 
     # 9. Test Excel Report Export
-    res = requests.post(f"{BASE_URL}/reports/export/{ans1['analysis_id']}", json={
+    res = client.post(f"/api/v1/reports/export/{ans1['analysis_id']}", json={
         "table_headers": ans1["table_headers"],
         "table_rows": ans1["table_rows"],
         "calculation_summary": ans1["calculation_summary"]
@@ -87,13 +88,13 @@ def test_full_e2e_workflow():
     print(f"[OK] Excel Export Verified: {exp['file_name']}, URL: {exp['download_url']}")
 
     # Download & inspect exported file with openpyxl
-    dl_res = requests.get(f"http://127.0.0.1:8000{exp['download_url']}")
+    dl_res = client.get(exp['download_url'])
     assert dl_res.status_code == 200
     assert len(dl_res.content) > 1000
     print(f"[OK] Downloaded Excel file verified ({len(dl_res.content)} bytes).")
 
     # 10. Check Evaluation Metrics
-    eval_res = requests.get(f"{BASE_URL}/evaluation/metrics")
+    eval_res = client.get("/api/v1/evaluation/metrics")
     assert eval_res.status_code == 200
     metrics = eval_res.json()
     print(f"[OK] Research Evaluation Dashboard metrics verified (Accuracy: {metrics['formula_accuracy_pct']}%)")
@@ -101,3 +102,4 @@ def test_full_e2e_workflow():
 
 if __name__ == "__main__":
     test_full_e2e_workflow()
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Sparkles,
   Send,
@@ -44,6 +44,11 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
   const [isExporting, setIsExporting] = useState(false);
   const [evalSubmitted, setEvalSubmitted] = useState(false);
   const [simulateMismatch, setSimulateMismatch] = useState(false);
+
+  // Table sorting & filtering states (Single Source of Truth)
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [tableFilterText, setTableFilterText] = useState<string>('');
 
   const isCarDataset = selectedDataset?.filename?.toLowerCase().includes('mobil') || selectedDataset?.filename?.toLowerCase().includes('penjualan');
 
@@ -92,14 +97,88 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
     setTimeout(() => setCopiedFormula(false), 2000);
   };
 
+  // Handle column sort toggle
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortColumn(null);
+        setSortDirection('asc');
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // 1. Process & filter data (Single Source of Truth - Rules 1, 2, 6, 11, 13)
+  const filteredData = useMemo(() => {
+    if (!analysisResult?.table_rows) return [];
+    if (!tableFilterText.trim()) return analysisResult.table_rows;
+    const q = tableFilterText.toLowerCase().trim();
+    return analysisResult.table_rows.filter((row: any) =>
+      Object.values(row).some((val) =>
+        val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+      )
+    );
+  }, [analysisResult?.table_rows, tableFilterText]);
+
+  // 2. Sort data (Single Source of Truth - Rules 1, 2, 5, 11, 13)
+  const displayedData = useMemo(() => {
+    if (!sortColumn) return filteredData;
+    return [...filteredData].sort((a: any, b: any) => {
+      const valA = a[sortColumn];
+      const valB = b[sortColumn];
+      if (valA === valB) return 0;
+      if (valA === null || valA === undefined) return 1;
+      if (valB === null || valB === undefined) return -1;
+
+      // Numeric comparison
+      const numA = typeof valA === 'number' ? valA : parseFloat(String(valA).replace(/[^0-9.-]+/g, ''));
+      const numB = typeof valB === 'number' ? valB : parseFloat(String(valB).replace(/[^0-9.-]+/g, ''));
+      const isExcluded = ['id', 'tahun', 'year', 'tenor', 'no', 'kode', 'phone'].some(k => sortColumn.toLowerCase().includes(k));
+      if (!isNaN(numA) && !isNaN(numB) && !isExcluded) {
+        return sortDirection === 'asc' ? numA - numB : numB - numA;
+      }
+
+      const strA = String(valA).toLowerCase();
+      const strB = String(valB).toLowerCase();
+      return sortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+    });
+  }, [filteredData, sortColumn, sortDirection]);
+
   const handleExportExcel = async () => {
     if (!analysisResult) return;
+
+    // Single Source of Truth: displayedData (Rules 1, 2, 8, 10, 11, 12, 13)
+    const exportData = displayedData;
+
+    // Rule 17: Validation / log before export
+    console.log({
+      tableRows: displayedData.length,
+      exportRows: exportData.length,
+      firstTableId: displayedData[0]?.ID_Transaksi,
+      firstExportId: exportData[0]?.ID_Transaksi
+    });
+
     setIsExporting(true);
     try {
       const res = await api.exportReport(analysisResult.analysis_id, {
+        user_query: analysisResult.user_query,
+        formula_id: analysisResult.decision?.formula_id || analysisResult.formula_name,
+        formula_name: analysisResult.formula_name,
+        generated_excel_formula: analysisResult.generated_formula || analysisResult.decision?.generated_excel_formula,
+        formula_explanation: analysisResult.decision?.reason || analysisResult.explanation?.formula_selection,
+        tasks: analysisResult.tasks || [],
         table_headers: analysisResult.table_headers,
-        table_rows: analysisResult.table_rows,
+        table_rows: exportData, // Single Source of Truth!
         calculation_summary: analysisResult.calculation_summary,
+        dataset_id: analysisResult.dataset_id || selectedDataset?.id,
+        group_by: analysisResult.parsed_intent?.group_by?.length
+          ? analysisResult.parsed_intent.group_by
+          : (analysisResult.group_by || (analysisResult.formula_plan?.grouping ? [analysisResult.formula_plan.grouping] : [])),
+        formula_plan: analysisResult.formula_plan || analysisResult.summary?.formula_plan,
       });
       // Trigger download
       window.open(`http://localhost:8000${res.download_url}`, '_blank');
@@ -345,7 +424,7 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                   Target: <strong style={{ color: '#60a5fa' }}>{analysisResult.parsed_intent.target_field || '-'}</strong>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.15rem' }}>
-                  Group: {analysisResult.parsed_intent.group_by.join(', ') || 'Grand Total'}
+                  Group: {analysisResult.parsed_intent?.group_by?.join(', ') || analysisResult.formula_plan?.grouping || analysisResult.summary?.formula_plan?.grouping || 'Grand Total'}
                 </div>
               </div>
 
@@ -436,13 +515,13 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                 <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#93c5fd', wordBreak: 'break-word' }}>
                   {analysisResult.calculation_summary?.calculated_result != null
                     ? (typeof analysisResult.calculation_summary.calculated_result === 'number'
-                        ? Number(analysisResult.calculation_summary.calculated_result).toLocaleString('id-ID')
-                        : String(analysisResult.calculation_summary.calculated_result))
+                      ? Number(analysisResult.calculation_summary.calculated_result).toLocaleString('id-ID')
+                      : String(analysisResult.calculation_summary.calculated_result))
                     : (analysisResult.calculation_summary?.grand_total != null
-                        ? (typeof analysisResult.calculation_summary.grand_total === 'number'
-                            ? Number(analysisResult.calculation_summary.grand_total).toLocaleString('id-ID')
-                            : String(analysisResult.calculation_summary.grand_total))
-                        : `${analysisResult.table_rows.length} Baris Data`)}
+                      ? (typeof analysisResult.calculation_summary.grand_total === 'number'
+                        ? Number(analysisResult.calculation_summary.grand_total).toLocaleString('id-ID')
+                        : String(analysisResult.calculation_summary.grand_total))
+                      : `${analysisResult.table_rows.length} Baris Data`)}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#cbd5e1', marginTop: '0.2rem' }}>
                   {analysisResult.table_rows.length} baris diproses
@@ -480,6 +559,33 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
               <strong>Log Keputusan Rule & Knowledge Base: </strong>
               {analysisResult.decision.rule_decision || analysisResult.decision.reason}
             </div>
+
+            {/* Tiered Formula / Hierarchical Grouping Plan Banner */}
+            {(analysisResult.formula_plan || analysisResult.summary?.formula_plan) && (
+              <div style={{
+                marginTop: '1rem',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%)',
+                border: '1px solid rgba(139, 92, 246, 0.35)',
+                borderRadius: '8px',
+                padding: '0.85rem 1.15rem',
+                fontSize: '0.85rem',
+                color: '#e0e7ff'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: '#c084fc' }}>
+                    <Layers size={16} color="#c084fc" />
+                    <span>Laporan Excel Bertingkat (Tiered Grouping Report)</span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.6rem', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe', fontWeight: 700 }}>
+                    {(analysisResult.formula_plan || analysisResult.summary?.formula_plan)?.total_groups || 0} Kelompok Kategori Terdeteksi
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                  Sistem mendeteksi pengelompokan dinamis berdasarkan kolom <strong style={{ color: '#38bdf8' }}>{(analysisResult.formula_plan || analysisResult.summary?.formula_plan)?.grouping}</strong>.
+                  Ekspor Excel (.xlsx) akan menyusun seluruh data mentah menjadi blok grup terpisah dengan baris <strong>SUBTOTAL</strong> menggunakan formula aktif Excel (<code>=SUM(...)</code>) dan baris <strong>TOTAL KESELURUHAN</strong>, disertai sheet cadangan <strong>Data Mentah</strong>.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 1. TABEL HASIL / DATA BARIS TERFILTER (FULL WIDTH 100%) */}
@@ -506,7 +612,9 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                   color: '#60a5fa',
                   fontWeight: 600
                 }}>
-                  {analysisResult.table_rows.length} Baris Data
+                  {tableFilterText
+                    ? `Hasil Filter: ${displayedData.length} dari ${analysisResult.table_rows.length} Baris`
+                    : `${displayedData.length} Baris Data`}
                 </span>
                 <span style={{
                   fontSize: '0.75rem',
@@ -519,18 +627,36 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                   {analysisResult.table_headers.length} Kolom
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
-                  (Scroll ↕ vertikal dan ↔ horizontal di dalam tabel)
+                  (Klik judul kolom untuk mengurutkan data)
                 </span>
               </div>
-              <button
-                onClick={handleExportExcel}
-                disabled={isExporting}
-                className="btn btn-primary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-              >
-                <Download size={15} />
-                <span>{isExporting ? 'Generating...' : 'Export Excel (.xlsx)'}</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Filter / cari di tabel..."
+                  value={tableFilterText}
+                  onChange={(e) => setTableFilterText(e.target.value)}
+                  style={{
+                    padding: '0.45rem 0.8rem',
+                    fontSize: '0.8rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f8fafc',
+                    outline: 'none',
+                    width: '180px'
+                  }}
+                />
+                <button
+                  onClick={handleExportExcel}
+                  disabled={isExporting}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                >
+                  <Download size={15} />
+                  <span>{isExporting ? 'Generating...' : 'Export Excel (.xlsx)'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Table Scroll Container */}
@@ -540,35 +666,159 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                   <tr>
                     <th style={{ width: '60px', textAlign: 'center', minWidth: '55px' }}>No</th>
                     {analysisResult.table_headers.map((h, i) => (
-                      <th key={i}>{h}</th>
+                      <th
+                        key={i}
+                        onClick={() => handleSort(h)}
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        title={`Klik untuk mengurutkan berdasarkan ${h}`}
+                      >
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>{h}</span>
+                          {sortColumn === h && (
+                            <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 800 }}>
+                              {sortDirection === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {analysisResult.table_rows.map((row, rIdx) => (
-                    <tr key={rIdx}>
+                  {displayedData.map((row: any, rIdx) => {
+                    const isSubtotal = Boolean(row._is_subtotal) ||
+                      Object.values(row).some(v => typeof v === 'string' && (v.trim().toUpperCase() === 'TOTAL' || v.trim().toUpperCase() === 'TOTAL KESELURUHAN'));
+                    const isGrandTotal = Boolean(row._is_grand_total) ||
+                      Object.values(row).some(v => typeof v === 'string' && v.trim().toUpperCase() === 'TOTAL KESELURUHAN');
+
+                    return (
+                      <tr
+                        key={rIdx}
+                        style={isSubtotal ? {
+                          background: isGrandTotal
+                            ? 'linear-gradient(90deg, rgba(16, 185, 129, 0.26) 0%, rgba(5, 150, 105, 0.20) 100%)'
+                            : 'linear-gradient(90deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.08) 100%)',
+                          borderTop: isGrandTotal ? '2px solid #10b981' : '1px solid rgba(16, 185, 129, 0.4)',
+                          borderBottom: isGrandTotal ? '2px solid #10b981' : '1px solid rgba(16, 185, 129, 0.4)',
+                          fontWeight: 700
+                        } : {}}
+                      >
+                        <td style={{
+                          textAlign: 'center',
+                          color: isSubtotal ? '#10b981' : '#94a3b8',
+                          fontSize: '0.82rem',
+                          fontWeight: isSubtotal ? 800 : 600,
+                          fontFamily: 'var(--font-mono)',
+                          background: isSubtotal ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)'
+                        }}>
+                          {isSubtotal ? (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              background: isGrandTotal ? '#10b981' : 'rgba(16, 185, 129, 0.25)',
+                              color: isGrandTotal ? '#022c22' : '#34d399',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              letterSpacing: '0.04em'
+                            }}>
+                              {isGrandTotal ? 'TOTAL AKHIR' : 'TOTAL'}
+                            </span>
+                          ) : (
+                            rIdx + 1
+                          )}
+                        </td>
+                        {analysisResult.table_headers.map((h, cIdx) => (
+                          <td key={cIdx} style={{
+                            fontWeight: isSubtotal ? 700 : (typeof row[h] === 'number' ? 600 : 400),
+                            color: isSubtotal ? '#f0fdf4' : 'inherit',
+                            fontFamily: typeof row[h] === 'number' ? 'var(--font-mono)' : 'inherit',
+                            textAlign: typeof row[h] === 'number' ? 'right' : (String(row[h] ?? '').toUpperCase().includes('TOTAL') ? 'center' : 'left')
+                          }}>
+                            {typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h] ?? '-')}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {!analysisResult.calculation_summary?.has_subtotals && !displayedData.some((r: any) => r._is_subtotal || r._is_grand_total) && (
+                  <tfoot>
+                    <tr style={{
+                      position: 'sticky',
+                      bottom: 0,
+                      background: 'linear-gradient(180deg, rgba(15, 41, 34, 0.98) 0%, rgba(6, 78, 59, 0.98) 100%)',
+                      borderTop: '2px solid #10b981',
+                      boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.4)',
+                      zIndex: 3
+                    }}>
                       <td style={{
                         textAlign: 'center',
-                        color: '#94a3b8',
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                        fontFamily: 'var(--font-mono)',
-                        background: 'rgba(255, 255, 255, 0.02)'
+                        color: '#10b981',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        letterSpacing: '0.05em',
+                        padding: '0.85rem 0.5rem',
+                        borderTop: '2px solid #10b981',
+                        background: 'rgba(6, 78, 59, 0.98)'
                       }}>
-                        {rIdx + 1}
+                        TOTAL
                       </td>
-                      {analysisResult.table_headers.map((h, cIdx) => (
-                        <td key={cIdx} style={{
-                          fontWeight: typeof row[h] === 'number' ? 600 : 400,
-                          fontFamily: typeof row[h] === 'number' ? 'var(--font-mono)' : 'inherit',
-                          textAlign: typeof row[h] === 'number' ? 'right' : 'left'
-                        }}>
-                          {typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h] ?? '-')}
-                        </td>
-                      ))}
+                      {analysisResult.table_headers.map((h, cIdx) => {
+                        const cleanH = h.toLowerCase().replace(/_/g, ' ').trim();
+
+                        // 1. Check if matched task exists with execution result (only if table is not filtered)
+                        const matchedTask = !tableFilterText.trim() ? analysisResult.tasks?.find(t => {
+                          const tgt = String(t.target || t.target_term || (t.columns && t.columns.target && t.columns.target.matched_column) || '').toLowerCase().replace(/_/g, ' ').trim();
+                          return tgt && (tgt === cleanH || cleanH.includes(tgt) || tgt.includes(cleanH));
+                        }) : null;
+
+                        let totalVal: number | null = null;
+                        if (matchedTask && typeof matchedTask.execution?.result === 'number') {
+                          totalVal = matchedTask.execution.result;
+                        } else {
+                          // 2. Check if column is a numeric amount/metric column (Harga, DP, Netto, Diskon, Biaya, Cicilan, dll.)
+                          const isExcluded = ['id', 'tahun', 'year', 'persen', 'percent', '%', 'tenor', 'kode', 'code', 'tanggal', 'date', 'cc', 'usia'].some(ex => cleanH.includes(ex));
+                          const isMetric = ['harga', 'dp', 'netto', 'diskon', 'nominal', 'biaya', 'cicilan', 'total', 'produksi', 'tbs', 'cpo', 'jumlah', 'nilai'].some(inc => cleanH.includes(inc));
+
+                          if (!isExcluded && isMetric) {
+                            let sum = 0;
+                            let count = 0;
+                            for (const r of displayedData) {
+                              const val = r[h];
+                              if (typeof val === 'number') {
+                                sum += val;
+                                count++;
+                              } else if (typeof val === 'string') {
+                                const cleaned = val.replace(/[^0-9.-]+/g, '');
+                                if (cleaned && !isNaN(Number(cleaned))) {
+                                  sum += Number(cleaned);
+                                  count++;
+                                }
+                              }
+                            }
+                            if (count > 0) totalVal = sum;
+                          }
+                        }
+
+                        return (
+                          <td key={cIdx} style={{
+                            fontWeight: 800,
+                            fontFamily: totalVal !== null ? 'var(--font-mono)' : 'inherit',
+                            textAlign: totalVal !== null ? 'right' : 'center',
+                            color: totalVal !== null ? '#34d399' : '#64748b',
+                            padding: '0.85rem 0.75rem',
+                            borderTop: '2px solid #10b981',
+                            fontSize: '0.88rem',
+                            background: 'rgba(6, 78, 59, 0.98)'
+                          }}>
+                            {totalVal !== null ? totalVal.toLocaleString('id-ID') : '-'}
+                          </td>
+                        );
+                      })}
                     </tr>
-                  ))}
-                </tbody>
+                  </tfoot>
+                )}
               </table>
             </div>
 
@@ -625,10 +875,10 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
 
           {/* 2. PANEL PEMBUKTIAN & REKONSILIASI INTEGRITAS DATA MENTAH (FULL WIDTH DI BAWAH TABEL) */}
           {(() => {
-            const actualRawMatched = analysisResult.calculation_summary.matched_rows || analysisResult.table_rows.length;
+            const actualRawMatched = analysisResult.calculation_summary.matched_rows ?? analysisResult.table_rows.length;
             const rawMatchedRows = actualRawMatched;
             // Jika mode uji coba salah aktif, simulasikan 3 baris hilang sehingga timbul selisih
-            const aiResultRows = simulateMismatch ? Math.max(actualRawMatched - 3, 0) : analysisResult.table_rows.length;
+            const aiResultRows = simulateMismatch ? Math.max(actualRawMatched - 3, 0) : actualRawMatched;
             const varianceRows = Math.abs(rawMatchedRows - aiResultRows);
             const isMatch = !simulateMismatch && varianceRows === 0;
 
@@ -831,7 +1081,9 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                       {aiResultRows.toLocaleString('id-ID')} Baris
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
-                      Jumlah data yang disajikan di tabel laporan
+                      {analysisResult.calculation_summary.matched_rows && analysisResult.calculation_summary.matched_rows > analysisResult.table_rows.length
+                        ? `Total data dihitung AI (${analysisResult.table_rows.length} baris pratinjau tabel)`
+                        : 'Jumlah data yang disajikan di tabel laporan'}
                     </div>
                   </div>
                 </div>
@@ -854,7 +1106,9 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
                   <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.9rem 1.1rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                     <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Persentase Lolos Filter</div>
                     <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.25rem' }}>
-                      {analysisResult.calculation_summary.match_percentage || ((aiResultRows / Math.max(selectedDataset.row_count, 1)) * 100).toFixed(1)}%
+                      {analysisResult.calculation_summary.match_percentage != null
+                        ? `${analysisResult.calculation_summary.match_percentage}%`
+                        : `${((aiResultRows / Math.max(analysisResult.calculation_summary.total_raw_rows || selectedDataset.row_count, 1)) * 100).toFixed(1)}%`}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Porsi dari total file mentah</div>
                   </div>

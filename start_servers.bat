@@ -13,11 +13,16 @@ timeout /t 2 /nobreak >nul
 echo [2/2] Menjalankan Server Frontend (React Port 5173)...
 start "SmartExcel Frontend UI (Port 5173)" cmd /k "cd /d %~dp0frontend && npm run dev"
 
+timeout /t 3 /nobreak >nul
+
+echo [3/3] Membuka browser otomatis ke http://localhost:5173...
+start http://localhost:5173
+
 echo.
 echo ==============================================================
-echo   SUKSES! Kedua server sedang berjalan di jendela terpisah.
-echo   Silakan buka browser di: http://localhost:5173
-echo   (JANGAN tutup jendela hitam yang baru muncul agar server tetap hidup)
+echo   SUKSES! Server berjalan dan browser telah dibuka otomatis.
+echo   URL Aplikasi: http://localhost:5173
+echo   (JANGAN tutup jendela command prompt agar server tetap hidup)
 echo ==============================================================
 echo.
 pause

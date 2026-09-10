@@ -5,6 +5,7 @@ import {
   Filter,
   Code2,
   CheckCircle2,
+  AlertCircle,
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
@@ -24,9 +25,12 @@ export const FormulaKBPage: React.FC = () => {
     setTrainStatus(null);
     try {
       const res = await api.trainModel();
-      setTrainStatus(`Berhasil! ${res.message} (${res.classes?.length || 14} rumus dipelajari).`);
-    } catch (err) {
-      setTrainStatus('Gagal melatih model AI.');
+      const numClasses = res.classes?.length || (res as any).training_run?.classes?.length || 18;
+      const acc = (res as any).accuracy != null ? `(Akurasi: ${((res as any).accuracy * 100).toFixed(1)}%)` : '';
+      setTrainStatus(`Berhasil! ${res.message} ${numClasses} formula dipelajari ${acc}`.trim());
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || 'Gagal melatih model AI.';
+      setTrainStatus(`Gagal: ${msg}`);
     } finally {
       setIsTraining(false);
     }
@@ -105,7 +109,7 @@ export const FormulaKBPage: React.FC = () => {
           alignItems: 'center',
           gap: '0.5rem',
         }}>
-          <CheckCircle2 size={16} />
+          {trainStatus.startsWith('Berhasil') ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
           {trainStatus}
         </div>
       )}

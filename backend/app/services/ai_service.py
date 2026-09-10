@@ -68,6 +68,110 @@ Keluarkan HANYA JSON murni yang sesuai dengan skema tanpa markdown backticks.
             return None
 
     @classmethod
+    def parse_tasks_with_gemini(
+        cls,
+        query: str,
+        columns_profile: Optional[list[dict[str, Any]]] = None,
+        sample_df: Any = None
+    ) -> Optional[list[dict[str, Any]]]:
+        """
+        Uses Google Gemini strictly for semantic decomposition into structured tasks.
+        Gemini NEVER directly generates Excel formulas. It only parses natural language
+        intent, operations, targets, filters, and group_by into structured JSON.
+        """
+        api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return None
+
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=api_key)
+            col_info = []
+            if columns_profile:
+                col_info = [
+                    {
+                        "name": c.get("original_name"),
+                        "type": c.get("inferred_type"),
+                        "samples": c.get("sample_values", [])[:3]
+                    }
+                    for c in columns_profile
+                ]
+            elif sample_df is not None and hasattr(sample_df, "columns"):
+                for col_name in sample_df.columns:
+                    col_info.append({
+                        "name": str(col_name),
+                        "type": "Numeric" if pd.api.types.is_numeric_dtype(sample_df[col_name]) else "Text",
+                        "samples": list(sample_df[col_name].dropna().head(3).astype(str))
+                    })
+
+            prompt = f"""
+Anda adalah AI Semantic Task Decomposer untuk Sistem Excel Cerdas PTPN.
+Tugas Anda: memecah permintaan pengguna ke dalam daftar TASK independen.
+
+Struktur Kolom Dataset:
+{json.dumps(col_info, indent=2, ensure_ascii=False)}
+
+Permintaan Pengguna:
+"{query}"
+
+Instruksi:
+1. Jika pengguna meminta beberapa kalkulasi (misal: "total dan rata-rata", atau "total, rata-rata, tertinggi, terendah, jumlah data"):
+   Pecah menjadi beberapa TASK terpisah.
+   Operation yang diizinkan: 'SUM', 'AVERAGE', 'MAX', 'MIN', 'COUNT', 'XLOOKUP'.
+   Catatan: "total" -> SUM, "rata-rata" -> AVERAGE, "tertinggi" -> MAX, "terendah" -> MIN, "jumlah data" -> COUNT.
+2. Wariskan konteks umum (target, filter afdeling, filter bulan/tanggal) ke SEMUA task, KECUALI jika ada klausul spesifik yang meng-override konteks tersebut (misal "total TBS afdeling A dan rata-rata CPO afdeling B").
+3. Format output HANYA JSON murni dengan format persis seperti ini:
+{{
+  "tasks": [
+    {{
+      "task_id": "task_1",
+      "operation": "SUM",
+      "target_term": "TBS",
+      "filters": [
+        {{
+          "field": "Afdeling",
+          "operator": "=",
+          "value": "A"
+        }},
+        {{
+          "field": "Tanggal",
+          "operator": "between",
+          "value": {{
+            "start": "2026-01-01",
+            "end": "2026-01-31"
+          }}
+        }}
+      ],
+      "group_by": [],
+      "confidence": 0.95
+    }}
+  ]
+}}
+Tanpa markdown codeblock backtick.
+"""
+
+            response = client.models.generate_content(
+                model=settings.LLM_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+
+            if response and response.text:
+                data = json.loads(response.text)
+                if isinstance(data, dict) and "tasks" in data and isinstance(data["tasks"], list):
+                    return data["tasks"]
+                elif isinstance(data, list):
+                    return data
+        except Exception as e:
+            print(f"[AIService] Gemini task decomposition fallback triggered: {e}")
+            return None
+        return None
+
+    @classmethod
     def _heuristic_rule_parser(cls, query: str, columns: list[DatasetColumn], df: Any = None) -> StructuredAnalysisIntent:
         """
         Deterministic NLP Parser fallback that guarantees 100% accurate structured JSON

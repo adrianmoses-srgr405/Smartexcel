@@ -1,15 +1,26 @@
-import requests
 from pathlib import Path
+from fastapi.testclient import TestClient
+from app.main import app
 
-BASE_URL = "http://127.0.0.1:8000/api/v1"
+client = TestClient(app)
 
 def test_uploaded_multisheet_excel():
-    upload_files = list(Path("storage/uploads").glob("*.xlsx")) or list(Path("../storage/uploads").glob("*.xlsx"))
-    upload_file = upload_files[0]
+    possible_dirs = [Path("storage/uploads"), Path("../storage/uploads")]
+    upload_files = []
+    for d in possible_dirs:
+        if d.exists():
+            upload_files.extend(list(d.glob("*.xlsx")))
+    
+    priority_files = [f for f in upload_files if "Penjualan_Mobil" in f.name]
+    assert len(priority_files) > 0 or len(upload_files) > 0, "No sample upload file found"
+    upload_file = priority_files[0] if priority_files else upload_files[0]
     print(f"Uploading file: {upload_file.name}")
     
     with open(upload_file, "rb") as f:
-        res = requests.post(f"{BASE_URL}/datasets/upload", files={"file": (upload_file.name, f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+        res = client.post(
+            "/api/v1/datasets/upload",
+            files={"file": (upload_file.name, f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+        )
     
     assert res.status_code == 200, res.text
     data = res.json()
@@ -23,3 +34,4 @@ def test_uploaded_multisheet_excel():
 
 if __name__ == "__main__":
     test_uploaded_multisheet_excel()
+

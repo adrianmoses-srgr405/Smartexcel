@@ -6,17 +6,17 @@ class FormulaKnowledgeItem(BaseModel):
     id: str
     name: str
     category: str
-    keywords: list[str]
-    description: str
-    syntax_template: str
-    required_parameters: list[str]
-    compatible_data_types: list[str]
-    min_filters: int
-    max_filters: int
-    use_cases: list[str]
-    examples: list[str]
-    explanation_template: str
-    validation_rules: list[str]
+    keywords: list[str] = []
+    description: str = ""
+    syntax_template: str = ""
+    required_parameters: list[str] = []
+    compatible_data_types: list[str] = []
+    min_filters: int = 0
+    max_filters: int = 99
+    use_cases: list[str] = []
+    examples: list[Any] = []
+    explanation_template: str = ""
+    validation_rules: list[str] = []
     is_active: bool = True
 
 class EvaluationBenchmarkItem(BaseModel):
@@ -43,5 +43,6 @@ class EvaluationMetricsSummary(BaseModel):
     avg_manual_time_sec: float
     avg_ai_time_sec: float
     total_time_saved_hours: float
-    formula_confusion_matrix: dict[str, dict[str, int]]
-    recent_evaluations: list[EvaluationBenchmarkItem]
+    formula_confusion_matrix: dict[str, Any] = {}
+    recent_evaluations: list[EvaluationBenchmarkItem] = []
+

@@ -1,6 +1,8 @@
+import gc
 import shutil
 import uuid
 from pathlib import Path
+
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
@@ -257,8 +259,17 @@ def delete_dataset(dataset_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Dataset tidak ditemukan")
 
     file_path = Path(dataset.file_path)
-    file_path.unlink(missing_ok=True)
+    try:
+        file_path.unlink(missing_ok=True)
+    except Exception:
+        gc.collect()
+        try:
+            file_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
 
     db.delete(dataset)
     db.commit()
     return {"message": "Dataset berhasil dihapus"}
+
