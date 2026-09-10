@@ -109,7 +109,7 @@ class ColumnResolver:
         # 1. Resolve Target Column
         target_expected_type = "Numeric" if operation in ["SUM", "SUMIF", "SUMIFS", "AVERAGE", "AVERAGEIF", "AVERAGEIFS", "MAX", "MIN"] else None
         
-        if target_term:
+        if target_term and cls._normalize_text(target_term) not in ["data", "nilai", "seluruh data", "semua data", "angka"]:
             res_target = cls.resolve_column(target_term, columns, expected_type=target_expected_type)
             mapping_result["target"] = res_target
             if not res_target.get("resolved"):
@@ -119,7 +119,23 @@ class ColumnResolver:
                 mapping_result["all_resolved"] = False
                 mapping_result["validation_errors"].append(f"Kolom '{res_target['matched_column']}' bertipe {res_target['inferred_type']}, tidak kompatibel untuk operasi numerik {operation}.")
         else:
-            if operation in ["SUM", "AVERAGE"]:
+            # Pick first available MEASURE column from columns
+            measure_col = None
+            for c in columns:
+                if c.get("semantic_type") == "MEASURE" or c.get("is_summable"):
+                    measure_col = c
+                    break
+            if not measure_col:
+                for c in columns:
+                    inferred = (c.get("inferred_type") or "").lower()
+                    c_name = c.get("original_name", "").lower()
+                    if ("num" in inferred or "float" in inferred or "int" in inferred) and not any(ex in c_name for ex in ["id", "no", "kode", "tahun", "plant", "tgl", "tanggal"]):
+                        measure_col = c
+                        break
+            if measure_col and target_expected_type == "Numeric":
+                res_target = cls._build_result(measure_col, 0.90, "default_primary_measure", target_expected_type)
+                mapping_result["target"] = res_target
+            elif operation in ["SUM", "AVERAGE"]:
                 mapping_result["all_resolved"] = False
                 mapping_result["validation_errors"].append(f"Operasi {operation} memerlukan kolom target numerik yang jelas.")
 

@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from app.schemas.intent import StructuredAnalysisIntent, FormulaDecisionResult
 from app.services.grouping_subtotal_service import GroupingSubtotalService
+from app.services.semantic_column_detector import UniversalSemanticColumnDetector
 
 class ExecutionEngine:
     """
@@ -503,6 +504,20 @@ class ExecutionEngine:
 
         op = intent.operation.upper()
         fid = decision.formula_id.upper()
+        clean_q = (user_query or "").lower().strip()
+
+        # Handle MAX / MIN requests ("data terbesar", "nilai tertinggi", etc.)
+        is_max = fid.startswith("MAX") or op == "MAX" or any(w in clean_q for w in ["terbesar", "tertinggi", "maksimal", "paling tinggi", "paling besar", "max"])
+        is_min = fid.startswith("MIN") or op == "MIN" or any(w in clean_q for w in ["terkecil", "terendah", "minimal", "paling rendah", "paling kecil", "min"])
+
+        if is_max or is_min:
+            calc_fid = "MAX" if is_max else "MIN"
+            if not target_col or target_col not in filtered_df.columns:
+                measures = UniversalSemanticColumnDetector.get_measure_columns(filtered_df)
+                if measures:
+                    target_col = measures[0]
+            op = calc_fid
+            fid = calc_fid
 
         summary = {
             "total_raw_rows": len(df),
@@ -518,17 +533,26 @@ class ExecutionEngine:
         summary["calculated_result"] = exec_res.get("result")
         summary["execution_status"] = "success" if exec_res.get("executed") else "failed"
 
+        # If MAX/MIN, sort filtered_df so that the top row in the table/export is the record with the extreme value
+        if (is_max or is_min) and target_col and target_col in filtered_df.columns:
+            try:
+                num_s = pd.to_numeric(filtered_df[target_col], errors="coerce")
+                temp_df = filtered_df.copy()
+                temp_df["_sort_measure"] = num_s
+                filtered_df = temp_df.sort_values(by="_sort_measure", ascending=(not is_max), na_position="last").drop(columns=["_sort_measure"])
+            except Exception:
+                pass
+
         headers = list(filtered_df.columns)
         chart_data = []
 
         # Check if dynamic grouping & inline subtotals should be generated
-        clean_q = (user_query or "").lower().strip()
         is_total_query = any(k in clean_q for k in [
             "total", "rekap", "subtotal", "jumlahkan", "penjumlahan", "hitung total",
             "buat total", "ringkasan", "sum", "rekapitulasi", "setiap", "tiap"
         ])
         is_total_intent = op in ["SUM", "TOTAL", "REKAP", "SUBTOTAL"] or fid in ["SUM", "SUMIF", "SUMIFS"]
-        is_lookup_or_pure_filter = fid in ["VLOOKUP", "XLOOKUP", "INDEX", "MATCH"] or any(clean_q.startswith(p) for p in ["cari ", "temukan ", "filter "])
+        is_lookup_or_pure_filter = fid in ["VLOOKUP", "XLOOKUP", "INDEX", "MATCH"] or any(clean_q.startswith(p) for p in ["cari ", "temukan ", "filter "]) or is_max or is_min
 
         if (is_total_query or is_total_intent) and not is_lookup_or_pure_filter and not filtered_df.empty:
             preferred_group = intent.group_by[0] if (intent.group_by and intent.group_by[0] in filtered_df.columns) else None
@@ -554,6 +578,11 @@ class ExecutionEngine:
                 summary["measure_columns"] = detected_measures
                 summary["total_groups"] = sub_meta.get("total_groups", int(filtered_df[detected_group].nunique()))
                 summary["subtotal_metadata"] = sub_meta
+                summary["sourceRowCount"] = len(df)
+                summary["sourceColumnCount"] = len(df.columns)
+                summary["processedRowCount"] = len(rows)
+                summary["generatedTotalRows"] = sub_meta.get("generatedTotalRows", 0)
+                summary["detectedColumns"] = sub_headers
 
                 # Chart data based on detected group and primary measure
                 chart_measure = target_col if (target_col and target_col in detected_measures) else detected_measures[0]
@@ -582,6 +611,10 @@ class ExecutionEngine:
                     grp_agg = filtered_df.groupby(grp_col)[target_col].mean().reset_index()
                 elif op == "COUNT":
                     grp_agg = filtered_df.groupby(grp_col)[target_col].count().reset_index()
+                elif op == "MAX":
+                    grp_agg = filtered_df.groupby(grp_col)[target_col].max().reset_index()
+                elif op == "MIN":
+                    grp_agg = filtered_df.groupby(grp_col)[target_col].min().reset_index()
                 else:
                     grp_agg = filtered_df.groupby(grp_col)[target_col].sum().reset_index()
                 for _, grow in grp_agg.iterrows():
@@ -590,15 +623,22 @@ class ExecutionEngine:
                         "name": str(grow[grp_col]),
                         "value": int(val) if isinstance(val, (int, float)) and float(val).is_integer() else (round(float(val), 2) if pd.notna(val) else 0)
                     })
-            try:
-                filtered_df = filtered_df.sort_values(by=[grp_col])
-            except Exception:
-                pass
+            if not is_max and not is_min:
+                try:
+                    filtered_df = filtered_df.sort_values(by=[grp_col])
+                except Exception:
+                    pass
 
         # Convert all filtered/processed rows so the web table and export share the complete single source of truth (Rules 11 & 12)
         full_processed_df = filtered_df.copy()
         for col in full_processed_df.columns:
             full_processed_df[col] = full_processed_df[col].apply(lambda v: None if pd.isna(v) else str(v))
         rows = full_processed_df.to_dict(orient="records")
+
+        summary["sourceRowCount"] = len(df)
+        summary["sourceColumnCount"] = len(df.columns)
+        summary["processedRowCount"] = len(rows)
+        summary["generatedTotalRows"] = 0
+        summary["detectedColumns"] = headers
 
         return summary, headers, rows, chart_data

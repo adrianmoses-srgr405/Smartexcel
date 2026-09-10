@@ -3,6 +3,7 @@ from typing import Any, Tuple, Optional
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from app.services.semantic_column_detector import UniversalSemanticColumnDetector
 
 def index_to_excel_col(idx: int) -> str:
     """Converts 0-based column index to Excel column letter (0 -> A, 25 -> Z, 26 -> AA, etc.)."""
@@ -90,12 +91,69 @@ class ProfilerService:
         return []
 
     @classmethod
+    def detect_header_row(cls, file_path: Path, sheet_name: Optional[str] = None) -> int:
+        """
+        Intelligently detects the 0-indexed header row of an Excel sheet.
+        Handles banner rows, title merges, and dates (e.g. Row 4 in LHP SAP).
+        Scans top 20 rows and scores by non-empty string column count and diversity.
+        """
+        file_path = Path(file_path)
+        suffix = file_path.suffix.lower()
+        if suffix not in [".xlsx", ".xls"]:
+            return 0
+
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            ws = wb[sheet_name] if (sheet_name and sheet_name in wb.sheetnames) else wb.active
+            rows = []
+            for i, row in enumerate(ws.iter_rows(values_only=True)):
+                if i >= 20:
+                    break
+                rows.append(row)
+            wb.close()
+
+            if not rows:
+                return 0
+
+            best_row_idx = 0
+            max_score = -1.0
+
+            for idx, r in enumerate(rows):
+                non_empty = [c for c in r if c is not None and str(c).strip() != ""]
+                if not non_empty:
+                    continue
+
+                str_headers = []
+                for c in non_empty:
+                    c_str = str(c).strip()
+                    if not c_str.replace(".", "").replace(",", "").replace("-", "").isdigit() and len(c_str) < 80:
+                        str_headers.append(c_str)
+
+                distinct_str_count = len(set(str_headers))
+                total_cells = len(r)
+                score = (distinct_str_count * 3) + (len(non_empty) * 1.5)
+                # Penalize single-cell title banner merges across wide spreadsheets
+                if distinct_str_count <= 2 and total_cells > 5:
+                    score *= 0.2
+
+                if score > max_score:
+                    max_score = score
+                    best_row_idx = idx
+
+            return best_row_idx
+        except Exception:
+            return 0
+
+    @classmethod
     def load_dataset_file(cls, file_path: Path, sheet_name: Optional[str] = None, known_sheets: Optional[list[str]] = None) -> Tuple[pd.DataFrame, str, list[str]]:
         """
         Reads Excel (.xlsx, .xls) or CSV files into DataFrame.
         Intelligently auto-selects the main data sheet if multiple sheets exist.
+        Uses intelligent header detection to ensure table headers are read accurately.
         Returns: (df, selected_sheet_name, available_sheets)
         """
+        file_path = Path(file_path)
         suffix = file_path.suffix.lower()
         selected_sheet = sheet_name
         available_sheets = list(known_sheets) if known_sheets else []
@@ -113,7 +171,6 @@ class ProfilerService:
                     candidate_sheets = [s for s in available_sheets if s.strip().lower() not in meta_names]
                     
                     if candidate_sheets:
-                        # Find the sheet with the most rows/columns
                         best_sheet = candidate_sheets[0]
                         max_cells = 0
                         for s in candidate_sheets:
@@ -129,12 +186,21 @@ class ProfilerService:
                     else:
                         selected_sheet = available_sheets[0]
 
-            df = pd.read_excel(file_path, sheet_name=selected_sheet, engine="openpyxl" if suffix == ".xlsx" else None)
+            header_idx = cls.detect_header_row(file_path, sheet_name=selected_sheet)
+            df = pd.read_excel(
+                file_path,
+                sheet_name=selected_sheet,
+                header=header_idx,
+                engine="openpyxl" if suffix == ".xlsx" else None
+            )
+            # Remove trailing rows that are completely empty
+            df = df.dropna(how="all").reset_index(drop=True)
         elif suffix == ".csv":
             try:
                 df = pd.read_csv(file_path, encoding="utf-8")
             except UnicodeDecodeError:
                 df = pd.read_csv(file_path, encoding="latin1")
+            df = df.dropna(how="all").reset_index(drop=True)
             selected_sheet = "CSV_Data"
             available_sheets = ["CSV_Data"]
         else:
@@ -212,12 +278,18 @@ class ProfilerService:
             else:
                 text_cols.append(col_name)
 
+            # Semantic classification
+            sem_type = UniversalSemanticColumnDetector.classify_column(col_name, series)
+
             col_data = {
                 "original_name": str(col_name),
                 "sanitized_name": sanitized,
                 "column_index": idx,
                 "excel_column_letter": excel_letter,
                 "inferred_type": inferred_type,
+                "semantic_type": sem_type,
+                "is_groupable": (sem_type == "CATEGORY"),
+                "is_summable": (sem_type == "MEASURE"),
                 "null_count": null_count,
                 "null_percentage": null_pct,
                 "unique_count": unique_count,
@@ -237,6 +309,7 @@ class ProfilerService:
             "date_columns": date_cols,
             "categorical_columns": categorical_cols,
             "text_columns": text_cols,
+            "semantic_columns": {str(c): UniversalSemanticColumnDetector.classify_column(c, df[c]) for c in df.columns}
         }
 
         preview_data = cls.extract_preview_data(df, limit=1000)

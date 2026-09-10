@@ -1,27 +1,28 @@
 import re
 from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
-from app.services.formula_planner import FormulaPlanner
+from app.services.semantic_column_detector import UniversalSemanticColumnDetector
 
 class GroupingSubtotalService:
     """
-    Dynamic Grouping and Inline Subtotal Engine for SmartExcel.
+    Universal Dynamic Grouping and Inline Subtotal Engine for SmartExcel.
     
     Principles:
     1. Zero hardcoding of categories/models/entities.
-    2. Contextual structure analysis for grouping detection (Model, Cabang, Sales, Pabrik, Kebun, Afdeling, etc.).
-    3. Dynamic measure identification: sums only valid numeric measures (Harga, DP, Diskon, Netto, CPO, TBS).
-       Never sums dimensions or time attributes like Tahun, ID, Tanggal, Kode.
-    4. Inline insertion: inserts a TOTAL row immediately after each group completes.
-    5. Detects existing TOTAL rows in uploaded Excel files to avoid duplication.
-    6. Single Source of Truth for Web Table and Excel Export.
+    2. Universal semantic column classification (Identifier, Date, Measure, Category).
+    3. Resolves grouping by column names AND sample values (e.g. 'per pabrik' -> 'Group Pemilik' containing 'PABRIK TANAH PUTIH').
+    4. Dynamic measure identification: sums only genuine MEASUREs (Harga, DP, Diskon, Netto, CPO, TBS).
+       Never sums dimensions, codes, or time attributes (Tahun, ID, Tanggal, Kode, Plant).
+    5. Inline insertion: inserts a 'TOTAL' row immediately after each group completes.
+    6. Uniform label: group totals are strictly 'TOTAL', grand total is 'TOTAL KESELURUHAN'.
+    7. Single Source of Truth for Web Table and Excel Export.
     """
 
     # Categories that are commonly used as grouping columns in enterprise / PTPN / automotive datasets
     HIERARCHY_GROUP_KEYWORDS = [
-        "model", "merek", "cabang", "sales", "pabrik", "nama pks", "pks",
-        "kebun", "nama kebun", "afdeling", "kategori", "jenis", "tipe",
-        "divisi", "departemen", "wilayah", "regional", "distrik", "segmen"
+        "pabrik", "pks", "nama pks", "kebun", "nama kebun", "group pemilik",
+        "model", "merek", "cabang", "sales", "afdeling", "kategori", "jenis", "tipe",
+        "divisi", "departemen", "wilayah", "regional", "distrik", "segmen", "desc"
     ]
 
     # Explicitly excluded from grouping
@@ -42,9 +43,10 @@ class GroupingSubtotalService:
         """
         Detects the grouping column dynamically without any hardcoding.
         Order of priority:
-        1. Explicit mention in query (e.g. 'per cabang' -> Cabang, 'per model' -> Model, 'per sales' -> Sales).
-        2. Preferred column from caller / task context if valid.
-        3. Structural analysis of dataset columns (matching hierarchy keywords and sensible cardinality).
+        1. Explicit mention in query (e.g. 'per cabang' -> Cabang, 'per pabrik' -> Group Pemilik / Pabrik).
+        2. Matching sample values of categorical columns.
+        3. Preferred column from caller / task context if valid.
+        4. Structural analysis of dataset columns (matching hierarchy keywords and sensible cardinality).
         """
         clean_q = (query or "").lower()
         cols = list(df.columns)
@@ -52,19 +54,32 @@ class GroupingSubtotalService:
 
         # 1. Explicit mention in query: 'per <col>', 'berdasarkan <col>', 'setiap <col>', 'tiap <col>'
         patterns = [
-            r"\b(?:per|berdasarkan|setiap|tiap|masing-masing|masing\s+masing|dikelompokkan\s+per)\s+([a-zA-Z0-9_]+(?:\s+[a-zA-Z0-9_]+)?)\b"
+            r"\b(?:per|berdasarkan|setiap|tiap|masing-masing|masing\s+masing|dikelompokkan\s+per|dikelompokkan\s+berdasarkan)\s+([a-zA-Z0-9_]+(?:\s+[a-zA-Z0-9_]+)?)\b"
         ]
+        explicit_dim = None
         for pat in patterns:
-            for m in re.finditer(pat, clean_q):
-                dim_candidate = m.group(1).strip()
-                # Check against df columns
-                for orig_col, l_col in zip(cols, cols_lower):
-                    if (
-                        dim_candidate == l_col or 
-                        dim_candidate in l_col or 
-                        l_col.startswith(dim_candidate) or
-                        dim_candidate.replace(" ", "") == l_col.replace(" ", "")
-                    ):
+            m = re.search(pat, clean_q)
+            if m:
+                explicit_dim = m.group(1).strip().lower()
+                break
+
+        if explicit_dim:
+            # Check against direct column names
+            for orig_col, l_col in zip(cols, cols_lower):
+                if (
+                    explicit_dim == l_col or 
+                    explicit_dim in l_col or 
+                    l_col.startswith(explicit_dim) or
+                    explicit_dim.replace(" ", "") == l_col.replace(" ", "")
+                ):
+                    return orig_col
+
+            # Check against sample values of text / categorical columns
+            for orig_col in cols:
+                s = df[orig_col].dropna()
+                if not pd.api.types.is_numeric_dtype(s) and not s.empty:
+                    samples_lower = [str(x).strip().lower() for x in s.head(30)]
+                    if any(explicit_dim in sv or sv.startswith(explicit_dim) for sv in samples_lower):
                         return orig_col
 
         # 2. Preferred column from caller
@@ -72,43 +87,23 @@ class GroupingSubtotalService:
             return preferred_col
 
         # 3. Structural Analysis: check columns matching hierarchy keywords with valid cardinality
-        candidate_scores: List[Tuple[int, str]] = [] # (priority_score, col_name)
-        total_rows = len(df)
+        groupable = UniversalSemanticColumnDetector.get_groupable_columns(df)
+        if groupable:
+            scored = []
+            for col in groupable:
+                c_clean = str(col).lower().replace("_", " ").strip()
+                score = 0
+                for idx, kw in enumerate(cls.HIERARCHY_GROUP_KEYWORDS):
+                    if kw == c_clean or kw in c_clean:
+                        score = 100 - idx
+                        break
+                if score == 0:
+                    score = 10
+                scored.append((score, col))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return scored[0][1]
 
-        for orig_col, l_col in zip(cols, cols_lower):
-            # Exclude obvious non-grouping columns
-            if any(ex == l_col or l_col.startswith(f"{ex} ") or l_col.endswith(f" {ex}") for ex in cls.NON_GROUP_KEYWORDS):
-                continue
-            
-            series = df[orig_col].dropna()
-            if series.empty:
-                continue
-
-            unique_count = series.nunique()
-            # Grouping dimension should have between 2 and min(60, total_rows // 2) unique groups
-            if unique_count < 2 or (total_rows > 10 and unique_count > 60):
-                continue
-
-            # Prioritize keyword matches
-            score = 0
-            for idx, kw in enumerate(cls.HIERARCHY_GROUP_KEYWORDS):
-                if kw == l_col or kw in l_col:
-                    score = 100 - idx
-                    break
-
-            if score > 0:
-                candidate_scores.append((score, orig_col))
-            elif not pd.api.types.is_numeric_dtype(series):
-                # Other text column with reasonable unique ratio (categorical)
-                ratio = unique_count / total_rows if total_rows > 0 else 1.0
-                if ratio <= 0.3:
-                    candidate_scores.append((10, orig_col))
-
-        if candidate_scores:
-            candidate_scores.sort(key=lambda x: x[0], reverse=True)
-            return candidate_scores[0][1]
-
-        # Fallback: find first non-numeric column with 2 <= unique <= 50
+        # 4. Fallback: find first non-numeric column with 2 <= unique <= 50
         for orig_col in cols:
             s = df[orig_col].dropna()
             if not pd.api.types.is_numeric_dtype(s):
@@ -125,76 +120,67 @@ class GroupingSubtotalService:
     ) -> List[str]:
         """
         Dynamically detects which numeric columns are valid measures to SUM.
-        - If query mentions specific targets ('total harga' -> ['Harga'], 'total harga dan dp' -> ['Harga', 'DP']),
+        - If query mentions specific targets ('total harga' -> ['Harga'], 'total tbs terima' -> ['TBS TERIMA HI']),
           returns only those targeted measures.
         - If query is general ('total', 'hitung total', 'buat total'), returns all valid summable measure columns.
-        - Strictly excludes ID, No, Kode, and Tahun (dimension/time attribute).
+        - Strictly excludes ID, No, Kode, Plant, and Tahun.
         """
         clean_q = (query or "").lower()
         cols = list(df.columns)
 
-        # 1. Identify all structurally summable columns in the DataFrame
-        all_summable = []
-        for c in cols:
-            # Special check for 'Tahun' / 'Year' -> NEVER sum Tahun
-            c_clean = str(c).lower().replace("_", " ").strip()
-            if any(ex in c_clean for ex in ["tahun", "year", "id", "kode", "code", "no", "nomor", "tanggal", "tgl", "cc", "tenor", "usia"]):
-                continue
-
-            if FormulaPlanner.is_summable_column(c, df[c]):
-                all_summable.append(c)
-
+        # 1. Identify all structurally summable columns using UniversalSemanticColumnDetector
+        all_summable = UniversalSemanticColumnDetector.get_measure_columns(df)
         if not all_summable:
             return []
 
-        # 2. Check if user asked for specific target measures
-        target_mappings = [
-            ("harga netto", "Harga_Netto"),
-            ("harga bersih", "Harga_Netto"),
-            ("netto", "Harga_Netto"),
-            ("harga", "Harga"),
-            ("dp", "DP"),
-            ("down payment", "DP"),
-            ("uang muka", "DP"),
-            ("diskon", "Diskon"),
-            ("tbs terima", "TBS_Terima"),
-            ("tbs olah", "TBS_Olah"),
-            ("tbs", "TBS"),
-            ("cpo", "CPO"),
-            ("pk", "PK"),
-            ("produksi", "Produksi"),
-            ("penjualan", "Penjualan"),
-            ("omzet", "Omzet"),
-            ("biaya", "Biaya"),
-            ("jumlah", "Jumlah"),
-            ("volume", "Volume"),
-            ("tonase", "Tonase")
-        ]
-
-        # Look for target words appearing in query (longest phrase first)
+        # 2. Check if user asked for specific target measures directly matching column names
         explicit_targets = []
-        target_mappings.sort(key=lambda x: len(x[0]), reverse=True)
-        matched_spans: List[Tuple[int, int]] = []
-
-        for phrase, mapped_key in target_mappings:
-            pattern = rf"\b{re.escape(phrase)}\b"
-            for m in re.finditer(pattern, clean_q):
-                s, e = m.span()
-                if any(max(s, ms) < min(e, me) for ms, me in matched_spans):
-                    continue
-                matched_spans.append((s, e))
-                # Resolve to exact column in DataFrame
-                for s_col in all_summable:
-                    s_clean = s_col.lower().replace("_", " ").strip()
-                    if s_clean == phrase or s_col.lower() == mapped_key.lower():
-                        if s_col not in explicit_targets:
-                            explicit_targets.append(s_col)
-                        break
+        for col in all_summable:
+            c_clean = str(col).lower().replace("_", " ").strip()
+            # If the column name is in clean_q
+            if c_clean in clean_q:
+                explicit_targets.append(col)
+            else:
+                tokens = [t for t in c_clean.split() if len(t) > 2 and t not in ["total", "hitung", "dan", "dari", "setiap", "per", "semua", "seluruh", "data"]]
+                if tokens and all(t in clean_q for t in tokens):
+                    explicit_targets.append(col)
 
         if explicit_targets:
             return explicit_targets
 
-        # 3. Default: return all valid summable measure columns
+        # 3. Check target synonyms / common business terms
+        target_mappings = [
+            ("harga netto", ["harga_netto", "harganetto", "netto"]),
+            ("harga bersih", ["harga_netto", "harganetto", "netto"]),
+            ("harga", ["harga"]),
+            ("dp", ["dp", "down_payment", "uang_muka"]),
+            ("diskon", ["diskon", "discount"]),
+            ("tbs terima", ["tbs terima", "tbs_terima"]),
+            ("tbs olah", ["tbs olah", "tbs_olah"]),
+            ("tbs", ["tbs"]),
+            ("cpo", ["cpo"]),
+            ("pk", ["pk", "kernel"]),
+            ("produksi", ["prod", "produksi"]),
+            ("penjualan", ["penjualan", "sales"]),
+            ("omzet", ["omzet", "omset", "revenue"]),
+            ("biaya", ["biaya", "cost"]),
+            ("jumlah", ["jumlah", "qty", "kuantitas", "volume"]),
+            ("tonase", ["tonase", "tbs", "cpo", "pk"])
+        ]
+
+        for phrase, candidates in target_mappings:
+            pattern = rf"\b{re.escape(phrase)}\b"
+            if re.search(pattern, clean_q):
+                for s_col in all_summable:
+                    s_clean = s_col.lower().replace("_", " ").strip()
+                    if any(cand in s_clean for cand in candidates):
+                        if s_col not in explicit_targets:
+                            explicit_targets.append(s_col)
+
+        if explicit_targets:
+            return explicit_targets
+
+        # 4. Default: return all valid summable measure columns
         return all_summable
 
     @classmethod
@@ -237,7 +223,14 @@ class GroupingSubtotalService:
             full_df = df.copy()
             for c in full_df.columns:
                 full_df[c] = full_df[c].apply(lambda v: None if pd.isna(v) else str(v))
-            return full_df.to_dict(orient="records"), list(df.columns), {"has_subtotals": False}
+            return full_df.to_dict(orient="records"), list(df.columns), {
+                "has_subtotals": False,
+                "sourceRowCount": len(df),
+                "sourceColumnCount": len(df.columns),
+                "processedRowCount": len(df),
+                "generatedTotalRows": 0,
+                "detectedColumns": list(df.columns)
+            }
 
         headers = list(df.columns)
 
@@ -259,11 +252,17 @@ class GroupingSubtotalService:
                 r_dict["_is_subtotal"] = is_tot
                 rows.append(r_dict)
 
+            tot_rows_count = sum(1 for r in rows if r.get("_is_subtotal"))
             return rows, headers, {
                 "has_subtotals": True,
                 "grouping_column": grouping_col,
                 "measure_columns": measure_cols,
-                "existing_totals_preserved": True
+                "existing_totals_preserved": True,
+                "sourceRowCount": len(df),
+                "sourceColumnCount": len(headers),
+                "processedRowCount": len(rows),
+                "generatedTotalRows": tot_rows_count,
+                "detectedColumns": headers
             }
 
         # Stable sort by grouping_col so all rows of the same group are consecutive
@@ -355,7 +354,12 @@ class GroupingSubtotalService:
             "measure_columns": measure_cols,
             "total_groups": len(unique_groups),
             "groups": unique_groups,
-            "grand_totals": grand_totals
+            "grand_totals": grand_totals,
+            "sourceRowCount": len(df),
+            "sourceColumnCount": len(headers),
+            "processedRowCount": len(result_rows),
+            "generatedTotalRows": len(unique_groups) + (1 if result_rows else 0),
+            "detectedColumns": headers
         }
 
         return result_rows, headers, summary_meta

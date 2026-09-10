@@ -50,27 +50,47 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [tableFilterText, setTableFilterText] = useState<string>('');
 
+  // Dynamically derive groupable and measure columns from active dataset schema
+  const colsList = selectedDataset?.columns_profile || selectedDataset?.columns || selectedDataset?.profiling?.columns || [];
+  const groupCol = colsList.find(
+    (c: any) => c.semantic_type === 'CATEGORY' || c.is_groupable || (c.inferred_type === 'Text' && !['id', 'kode', 'no'].includes(c.original_name.toLowerCase()))
+  )?.original_name;
+
+  const measureCol = colsList.find(
+    (c: any) => c.semantic_type === 'MEASURE' || c.is_summable || ['numeric', 'float', 'integer'].includes(String(c.inferred_type).toLowerCase())
+  )?.original_name;
+
   const isCarDataset = selectedDataset?.filename?.toLowerCase().includes('mobil') || selectedDataset?.filename?.toLowerCase().includes('penjualan');
 
-  const sampleQueries = isCarDataset ? [
-    'Rangkap data mobil Avanza',
-    'Ambil data mobil Innova',
-    'Tampilkan data mobil Pajero Sport',
-    'Ambil data mobil Fortuner',
-    'Rangkap data mobil Xpander',
-    'Filter data mobil Brio',
-    'Total penjualan mobil Rush',
-    'Filter data mobil Sigra',
-    'Total penjualan Toyota di Pekanbaru pada Februari 2024',
-    'Rekap total penjualan mobil per merek',
-  ] : [
-    'Buat rekap produksi CPO per asal kebun untuk Februari 2024',
-    'Berapa total produksi CPO Kebun Tandun pada Februari 2024?',
-    'Berapa total TBS Olah Kebun Tandun?',
-    'Berapa rata-rata rendemen CPO per asal kebun?',
-    'Cari hari dengan produksi CPO paling tinggi.',
-    'Berapa total keseluruhan Produksi CPO?',
-  ];
+  const sampleQueries = React.useMemo(() => {
+    if (isCarDataset) {
+      return [
+        'Rekap total penjualan setiap tipe mobil',
+        'Hitung total per model',
+        'Rangkap data mobil Avanza',
+        'Ambil data mobil Innova',
+        'Data terbesar berdasarkan harga',
+        'Rekap total per cabang'
+      ];
+    }
+    if (groupCol && measureCol) {
+      return [
+        'Hitung total',
+        `Hitung total per ${groupCol}`,
+        `Rekap total ${measureCol} per ${groupCol}`,
+        `Cari data terbesar berdasarkan ${measureCol}`,
+        'Cari data terbesar',
+        `Hitung rata-rata ${measureCol}`
+      ];
+    }
+    return [
+      'Hitung total',
+      groupCol ? `Hitung total per ${groupCol}` : 'Rekap total per kategori',
+      'Cari data terbesar',
+      'Hitung rata-rata',
+      'Tampilkan data'
+    ];
+  }, [groupCol, measureCol, isCarDataset]);
 
 
   const handleAnalyze = async (queryText?: string) => {
@@ -301,7 +321,7 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
               </button>
             ))}
           </div>
-          {isCarDataset && (
+          {selectedDataset && (
             <div style={{
               marginTop: '0.65rem',
               fontSize: '0.75rem',
@@ -314,8 +334,12 @@ export const AIQueryPage: React.FC<AIQueryPageProps> = ({ selectedDataset }) => 
               borderRadius: '6px',
               border: '1px solid rgba(56, 189, 248, 0.2)'
             }}>
-              <span>💡</span>
-              <span><strong>Dukungan Penuh:</strong> AI dapat mengenali <strong>seluruh 20 model mobil</strong> di dataset: Avanza, Innova, Fortuner, Pajero Sport, Rush, Brio, Sigra, Xpander, Terios, Xenia, BR-V, HR-V, Creta, Almaz, Alvez, Ertiga, XL7, Stargazer, Dolphin, Atto 3.</span>
+              <span>⚡</span>
+              <span>
+                <strong>Universal Command Engine Aktif:</strong> Terdeteksi {selectedDataset.column_count || colsList.length || 0} kolom ({selectedDataset.row_count?.toLocaleString() || 0} baris data).
+                {groupCol && ` Pengelompokan utama: ${groupCol}.`}
+                {measureCol && ` Pengukuran numerik: ${measureCol}.`}
+              </span>
             </div>
           )}
         </div>

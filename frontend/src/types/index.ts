@@ -14,6 +14,9 @@ export interface ColumnProfiling {
   mean_value?: string | number | null;
   sample_values: (string | number)[];
   distribution?: Record<string, number>;
+  semantic_type?: string;
+  is_groupable?: boolean;
+  is_summable?: boolean;
 }
 
 export interface DatasetSummary {
@@ -36,6 +39,7 @@ export interface Dataset {
   available_sheets?: string[];
   created_at: string;
   columns?: ColumnProfiling[];
+  columns_profile?: ColumnProfiling[];
   preview_data?: Record<string, any>[];
   profiling?: DatasetSummary;
 }

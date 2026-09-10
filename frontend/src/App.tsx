@@ -75,9 +75,7 @@ export const App: React.FC = () => {
         if (list.length > 0) {
           // Check if user previously selected a dataset (saved in localStorage)
           const savedId = localStorage.getItem('smart_excel_active_dataset_id');
-          const targetDataset = list.find((d) => d.id === savedId)
-            || list.find((d) => d.filename.toLowerCase().includes('mobil') || d.filename.toLowerCase().includes('penjualan'))
-            || list[0];
+          const targetDataset = list.find((d) => d.id === savedId) || list[0];
 
           setSelectedDataset(targetDataset);
           try {
